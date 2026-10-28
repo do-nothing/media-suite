@@ -144,6 +144,28 @@ marker 文件写入；**会话被自动唤醒并开始新一轮**。✅
 **待澄清**（见 §8 ②）：watcher 已存在时，后续会话提交的任务要不要换 owner？
 不换 → 那些会话永不被唤醒；换 → 原 owner 会话被换掉，语义变复杂。
 
+**用户 2026-10-28 确认：B 会话不用唤醒。** ✅
+即：只有**第一个提交任务的会话**（watcher 的 owner）会被唤醒；其他会话的任务完成后
+留在台账里，那些会话下次查询时能看到结果。
+
+### 3.2.1 批次语义（用户 2026-10-28 复述，与原技能 `pool.py` 一致）
+
+- **下发可以一次多条，也可以一条一条。**没有显式的"建批次"动作。
+- **批次是自动派生的，不是显性控制的**：
+  - 台账里有未完成任务时，**新下发的任务并入当前批次**（视为同一批次）。
+  - 只有**上一批次全部结束**后，再下发任务才**新建一个批次**。
+- 批次号在任务入队时分配并写进台账。
+
+**推论**：批次是**台账的派生状态**（由任务行算出），不是需要单独维护的实体——
+这正是原技能 `store.py` 的做法（"Batch state is derived from task rows (crash-safe)"）。
+好处：崩溃后重启，批次状态自动恢复，不需要额外的持久化。
+
+### 3.2.2 watcher 生命周期
+
+- watcher **排空（所有任务终态）后结束**，释放 owner。
+- 下次提交任务时**重新起一个 watcher**（新的 owner = 那个提交会话）。
+- **单例**：任意时刻全局只有一个 watcher。
+
 **「并发预算」的含义**（用户 2026-10-28 确认：**全局预算**）：
 
 `concurrency` = 全局同时在飞的 **RunningHub 任务**数（不是作业数）。
@@ -288,16 +310,73 @@ while (还有未完成任务):
 
 | # | 问题 | 现状 / 倾向 |
 |---|---|---|
-| ① | **skill 放哪？** | 需先查 DSH `skill-filesystem` provider 扫哪些目录，才能给准确方案 |
-| ② | **watcher 已有 owner 时，新会话提交的任务换不换 owner？** | 不换 → 那些会话永不被唤醒（符合「其余不管」但要确认）；换 → 语义复杂 |
+| ① | **skill 放哪？** | ✅ 已查清，见 §8.3 |
+| ② | ~~watcher 已有 owner 时换不换 owner？~~ | ✅ 已定：**不换**，B 会话不唤醒（§3.2） |
 | ③ | **类型目录怎么给模型？** | 倾向 `runninghub_workflow_types` 工具（权威）+ skill 里放选择规则 |
 | ④ | **`runninghub_workflow_outputs` 做不做？** | 倾向**不做**——产物路径和费用直接放进唤醒消息 |
 | ⑤ | **失败的任务怎么报？** | 原技能有 `ERROR:<poolId>: …` 逐条列 + `SUBMIT_FAILED` 状态 |
 | ⑥ | **启动失败重试**（`retry.*`）是否实现？ | 原技能对 errorCode `1000` 做窄门重试 |
-| ⑦ | **批量提交**的入参形式？ | 原技能支持 `--from-file jobs.json`；DSH 工具如何表达批量？ |
+| ⑦ | **批量提交**的入参形式？ | 批次是自动派生的（§3.2.1），但**一次调用提交多条**的入参形式待定 |
 | ⑧ | **`surface` 默认值** | v1 默认 `sync`；jobs 落地后是否改默认 `jobs`？ |
 | ⑨ | **产物交付方式** | DSH 里文件怎么给用户？链接？直接路径？ |
 | ⑩ | **`media-drama`** 包何时做？ | jobs 落地之后 |
+
+### 8.3 skill 放哪？（已查清，2026-10-28）
+
+`skill-filesystem` provider（`dsh-skill-filesystem/lib/index.js`）扫描 **5 类根目录**
+（`roots(cwd)` 方法，:149-187）：
+
+| 来源 | 路径 | rank | 说明 |
+|---|---|---|---|
+| `project-dsh` | `<项目根>/.dsh/skills/` | 100 | 项目根 = 从 cwd 向上找到含 `.git` 的目录 |
+| `project-agents` | `<项目根>/.agents/skills/` | 200 | 同上 |
+| `custom` | 配置的 `customSkillDirs` | 300 | 由 skill-filesystem 的 Config 注入 |
+| `user-dsh` | `$DSH_HOME/skills/` | 400 | 即 `C:\Users\lj110\.dsh\skills\` |
+| `user-agents` | `<agentsHome>/skills/` | 500 | |
+| `bundled` | `DSH_BUNDLED_SKILL_DIR` 环境变量指定的目录 | 特殊 | 随 DSH 安装分发的技能 |
+
+**发现方式**：根下每个**子目录**里的 `SKILL.md`（目录打包形态），或根下**直接的
+`*.md` 文件**（扁平形态）。frontmatter 必须含 `name` 和 `description`。
+
+**项目根的判定**：`findProjectRoot(cwd)` 从会话 cwd 向上找**含 `.git` 的目录**（:810-818）。
+当前会话 cwd 是 `E:\2026\dsh-plugins`，向上找到 `E:\2026\dsh-plugins\media-suite\.git`，
+**所以项目根是 `E:\2026\dsh-plugins\media-suite`**。
+
+**结论——skill 有三个可行位置：**
+
+| 位置 | 路径 | 优点 | 缺点 |
+|---|---|---|---|
+| **A．项目层** | `E:\2026\dsh-plugins\media-suite\.dsh\skills\runninghub-workflow\SKILL.md` | **跟包同仓库**，随 git 分发，改完立即生效（watcher 监听） | 只在 cwd 落在这个仓库里的会话可见 |
+| **B．用户层** | `C:\Users\lj110\.dsh\skills\runninghub-workflow\SKILL.md` | **任何会话都可见** | 与包分离，装包不会带上 skill；要手动复制 |
+| **C．包内 + customSkillDirs** | 包内 `skill/` 目录 + skill-filesystem 的 Config 加 `customSkillDirs` | 随包分发，任何会话可见 | **要改 skill-filesystem 的 Config**（profile patch），侵入面大 |
+
+**倾向：A（项目层）为主，B 为可选补充。**
+
+理由：
+
+1. skill 属于这个插件包的**文档/流程**，跟包放同一个仓库最合理——版本同步、
+   改 skill 不用动 profile。
+2. `A` 的 watcher 是实时的（chokidar），改 `SKILL.md` 后技能目录立即刷新，
+   下一次模型回合就能读到。
+3. **B 的场景**：如果用户在**别的项目**（不同 cwd）里也想用 RunningHub 任务池，
+   project 层就扫不到了——这时要么复制到 user 层，要么等 C。
+
+**注意**：`include:skill-filesystem` 在当前 profile 是 **disabled**
+（之前 `list_plugins` 显示 `enabled: false`）。**如果它没启用，所有 skill 目录都不会被扫描**，
+`skill` 工具的目录里就没有我们的技能。需要先确认它是 disabled 还是只是没注册行——
+它的 provider 由 `dsh-skill` 挂载，`dsh-skill` 本身是 active 的。
+（待实测确认：装好 skill 后调 `skill` 工具看目录里有没有。）
+
+**skill 的 frontmatter 草案**：
+
+```yaml
+---
+name: runninghub-workflow
+description: "RunningHub 工作流任务池的完整流程：11 种任务类型的选择规则、提交后禁止轮询、
+  自动批次语义、唤醒后取产物与费用报告。当用户提到工作流、任务池、批量、异步、
+  语音克隆、数字人、文生音乐、H3 视频时使用。"
+---
+```
 
 ### 8.1 2026-10-28 补充：并发预算
 
