@@ -42,11 +42,14 @@ async function registerOnce(skills) {
 
 /** Split a SKILL.md into its frontmatter fields and body. */
 function splitFrontmatter(raw) {
-  const firstLineEnd = raw.indexOf('\n')
-  if (firstLineEnd < 0 || raw.slice(0, firstLineEnd).replace(/\r$/, '') !== '---') {
+  // Strip a UTF-8 BOM: a BOM before the opening "---" would otherwise read
+  // as a missing frontmatter and fail the plugin.
+  const text = raw.replace(/^\uFEFF/, '')
+  const firstLineEnd = text.indexOf('\n')
+  if (firstLineEnd < 0 || text.slice(0, firstLineEnd).replace(/\r$/, '') !== '---') {
     throw new Error('workflow skill file has no frontmatter')
   }
-  const rest = raw.slice(firstLineEnd + 1)
+  const rest = text.slice(firstLineEnd + 1)
   const closing = rest.indexOf('\n---')
   if (closing < 0) throw new Error('workflow skill frontmatter is unterminated')
   const header = rest.slice(0, closing)
