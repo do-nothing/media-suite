@@ -192,10 +192,13 @@ export async function postJson(url, body, apiKey, signal) {
 }
 
 /**
- * Upload one local media file and return the provider file name.
+ * Upload one local media file and return the provider-side reference.
  *
- * RunningHub expects a multipart body with `apiKey`, `fileType=input`, and the
- * file; the usable node value is `data.fileName`.
+ * `/openapi/v2/media/upload/binary` authenticates with the `Authorization`
+ * header and takes exactly one form field, `file`. It answers with
+ * `data.download_url` and `data.fileName`; the value usable as an `imageUrls`
+ * entry is the download URL, because the standard model API consumes URLs rather
+ * than node file names (those belong to the workflow/app APIs).
  */
 export async function uploadFile(filePath, apiKey, signal) {
   let info
@@ -207,8 +210,6 @@ export async function uploadFile(filePath, apiKey, signal) {
   if (!info.isFile()) throw new ToolError('INVALID_MEDIA', `不是文件：${filePath}`)
 
   const form = new FormData()
-  form.append('apiKey', apiKey)
-  form.append('fileType', 'input')
   try {
     const blob = await openAsBlob(filePath)
     form.append('file', blob, basename(filePath))
@@ -218,7 +219,12 @@ export async function uploadFile(filePath, apiKey, signal) {
 
   let response
   try {
-    response = await fetch(UPLOAD_URL, { method: 'POST', body: form, signal })
+    response = await fetch(UPLOAD_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal,
+    })
   } catch (error) {
     if (signal.aborted) throw error
     throw new ToolError('UPLOAD_FAILED', '上传到 RunningHub 失败。')
@@ -234,11 +240,12 @@ export async function uploadFile(filePath, apiKey, signal) {
   if (!response.ok || payload?.code !== 0) {
     throw new ToolError('UPLOAD_FAILED', `上传到 RunningHub 失败：${providerMessage(payload, apiKey)}`)
   }
+
+  const url = payload?.data?.download_url
+  if (typeof url === 'string' && url.length > 0) return url
   const fileName = payload?.data?.fileName
-  if (typeof fileName !== 'string' || fileName.length === 0) {
-    throw new ToolError('UPLOAD_FAILED', 'RunningHub 上传响应缺少 fileName。')
-  }
-  return fileName
+  if (typeof fileName === 'string' && fileName.length > 0) return fileName
+  throw new ToolError('UPLOAD_FAILED', 'RunningHub 上传响应缺少 download_url / fileName。')
 }
 
 /**
