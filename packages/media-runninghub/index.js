@@ -267,11 +267,11 @@ function registerController(ctx) {
    * which key the running tools read, so both status replies report it and
    * the page can show the other key read-only.
    *
-   * The verdict is read from the live fiber config, not from the object
-   * `apply()` received. A Config write replaces the fiber's config object
-   * rather than mutating the captured one, so a captured reference would keep
-   * reporting the value it was created with and the tools would never see a
-   * verdict written after startup.
+   * The verdict is read from the live fiber config. A volatile-only write
+   * updates the running reference in place, so the value is current either
+   * way; reading the fiber's config is what also keeps this correct when a
+   * write carries an ordinary field too, because that path replaces the
+   * fiber's config object instead of mutating the previous one.
    */
   const contextOf = (field) => {
     const live = ctx.fiber.config

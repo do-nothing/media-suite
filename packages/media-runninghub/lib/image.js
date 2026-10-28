@@ -172,8 +172,6 @@ function validateArgs(args) {
 
 /** The model-facing tool definition. */
 function createRunningHubImageTool(ctx) {
-  const channel = ctx.fiber.config?.channel === 'official' ? 'official' : 'lowprice'
-
   return {
     name: 'runninghub_image',
     description:
@@ -246,8 +244,9 @@ function createRunningHubImageTool(ctx) {
 
       // The site is a configuration-time verdict, read from the live fiber
       // config so a key saved in the settings page takes effect on the next
-      // call. A captured config object would keep reporting the value it was
-      // created with.
+      // call. A volatile-only write updates the running reference in place;
+      // reading the fiber's config is also correct when a write carries an
+      // ordinary field, because that path replaces the config object.
       const site = siteOf(ctx.fiber.config, 'syncSite')
       if (site === undefined) {
         throw new ToolError(
@@ -256,6 +255,10 @@ function createRunningHubImageTool(ctx) {
         )
       }
 
+      // The channel is an ordinary field, so changing it reloads the plugin
+      // and re-creates this tool; reading it live keeps the two in step
+      // without relying on that.
+      const channel = ctx.fiber.config?.channel === 'official' ? 'official' : 'lowprice'
       const endpoints = CHANNEL_ENDPOINTS[channel]
       const mode = input.images.length === 0 ? 'text-to-image' : 'image-to-image'
 
