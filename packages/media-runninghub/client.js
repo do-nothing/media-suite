@@ -8,9 +8,15 @@
  * built-in Host controller over `$DSH_HOME/.credentials.yaml`. No value is
  * echoed back, kept in page state, or cached anywhere else.
  *
- * The two keys are deliberately separate: RunningHub's model API only accepts an
- * enterprise-shared key, while its workflow API also accepts a consumer-member
- * key. They may hold the same value; the page never compares them.
+ * The two keys are independent. Which one the current `surface` uses decides
+ * which card is editable: the active surface's key can be changed, the other
+ * one is shown read-only, because a key the running surface does not read
+ * would only look configured.
+ *
+ * Saving a key also judges the site that key belongs to. The verdict comes
+ * from the account's balance currency — `USD` is the international site and
+ * `CNY` the China site — and is stored in the plugin Config by the Host, so
+ * the tools know which host to call without asking again.
  */
 window.__ModuleLoader__.load({
   id: 'media-runninghub',
@@ -26,16 +32,22 @@ window.__ModuleLoader__.load({
     /** The two keys this page owns. */
     const KEYS = [
       {
-        ref: 'RUNNINGHUB_SHARED_API_KEY',
-        provider: '企业级-共享',
-        purpose: '模型 API / 同步任务',
-        status: 'sharedStatus',
+        ref: 'RUNNINGHUB_SYNC_API_KEY',
+        surface: 'sync',
+        provider: '同步模式 Key',
+        purpose: '模型 API / 同步图片生成',
+        status: 'syncStatus',
+        site: 'syncSite',
+        advice: 'sync 模式建议使用企业级-共享 Key。',
       },
       {
-        ref: 'RUNNINGHUB_MEMBER_API_KEY',
-        provider: '消费级-会员',
+        ref: 'RUNNINGHUB_JOBS_API_KEY',
+        surface: 'jobs',
+        provider: '任务池模式 Key',
         purpose: '工作流 API / 任务池',
-        status: 'memberStatus',
+        status: 'jobsStatus',
+        site: 'jobsSite',
+        advice: 'jobs 模式建议使用消费级-会员 Key。',
       },
     ]
 
@@ -49,28 +61,54 @@ window.__ModuleLoader__.load({
       package: 'media-runninghub',
       descriptors: [
         {
-          id: 'media-runninghub#mediaRunningHub/sharedStatus',
+          id: 'media-runninghub#mediaRunningHub/syncStatus',
           service: 'mediaRunningHubController',
           namespace: 'mediaRunningHub',
-          method: 'sharedStatus',
+          method: 'syncStatus',
           invocation: { kind: 'direct' },
           parameters: [],
           result: {
             mode: 'strict',
-            typeSymbol: 'media-runninghub#mediaRunningHub/sharedStatus:result',
+            typeSymbol: 'media-runninghub#mediaRunningHub/syncStatus:result',
             create: () => ({ parse: value => value }),
           },
         },
         {
-          id: 'media-runninghub#mediaRunningHub/memberStatus',
+          id: 'media-runninghub#mediaRunningHub/jobsStatus',
           service: 'mediaRunningHubController',
           namespace: 'mediaRunningHub',
-          method: 'memberStatus',
+          method: 'jobsStatus',
           invocation: { kind: 'direct' },
           parameters: [],
           result: {
             mode: 'strict',
-            typeSymbol: 'media-runninghub#mediaRunningHub/memberStatus:result',
+            typeSymbol: 'media-runninghub#mediaRunningHub/jobsStatus:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
+        {
+          id: 'media-runninghub#mediaRunningHub/syncSite',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'syncSite',
+          invocation: { kind: 'direct' },
+          parameters: [],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/syncSite:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
+        {
+          id: 'media-runninghub#mediaRunningHub/jobsSite',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'jobsSite',
+          invocation: { kind: 'direct' },
+          parameters: [],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/jobsSite:result',
             create: () => ({ parse: value => value }),
           },
         },
@@ -81,7 +119,7 @@ window.__ModuleLoader__.load({
       zh: {
         sectionLabel: 'RunningHub 媒体',
         title: 'RunningHub 媒体',
-        intro: '配置 RunningHub 的两类 API Key。企业级-共享用于模型 API（同步任务），消费级-会员用于工作流 API（任务池）。两者可以相同。',
+        intro: '配置 RunningHub 的两个 API Key：sync 模式用于模型 API 同步出图，jobs 模式用于工作流任务池。当前运行的模式可以编辑，另一个只读展示。',
         loading: '正在读取密钥状态…',
         configured: '已配置',
         configuredStored: '已配置 · 凭据库',
@@ -97,11 +135,23 @@ window.__ModuleLoader__.load({
         inputPlaceholder: '粘贴 API Key',
         replacePlaceholder: '已配置，输入新值可替换',
         readonlyNote: '当前凭据提供方不允许写入；请在 ~/.dsh/.credentials.yaml 中手动维护。',
+        inactiveNote: '当前运行的是 {surface} 模式，这个 Key 暂不参与调用，只读展示。切换 surface 后可编辑。',
+        inactiveBadge: '只读',
         emptyInput: '请输入 API Key 后再保存。',
         loadFailed: '读取密钥状态失败：{message}',
         saveFailed: '保存失败：{message}',
         clearFailed: '清除失败：{message}',
         purpose: '用途：{purpose}',
+        advice: '建议：{advice}',
+        surfaceSync: 'sync 模式',
+        surfaceJobs: 'jobs 模式',
+        siteCn: '中国站',
+        siteIntl: '国际站',
+        siteUnknown: '站点未判定',
+        siteLabel: '站点',
+        siteJudged: '已判定站点：{site}（按余额币种 {currency}）',
+        siteFailed: '站点判定失败：{message}',
+        sitePending: '保存后将按余额币种自动判定所属站点。',
         acctTitle: '账户状态',
         acctRefresh: '刷新',
         acctRefreshing: '刷新中…',
@@ -129,7 +179,7 @@ window.__ModuleLoader__.load({
       en: {
         sectionLabel: 'RunningHub Media',
         title: 'RunningHub Media',
-        intro: 'Configure the two RunningHub key types. Enterprise-shared drives the model API (synchronous tasks); consumer-member drives the workflow API (task pool). They may hold the same value.',
+        intro: 'Configure the two RunningHub API keys: sync drives the model API for synchronous images, jobs drives the workflow task pool. The running surface is editable; the other one is shown read-only.',
         loading: 'Reading key status…',
         configured: 'Configured',
         configuredStored: 'Configured · store',
@@ -145,11 +195,23 @@ window.__ModuleLoader__.load({
         inputPlaceholder: 'Paste the API key',
         replacePlaceholder: 'Configured — enter a new value to replace it',
         readonlyNote: 'The active credential provider is read-only; edit ~/.dsh/.credentials.yaml manually.',
+        inactiveNote: 'The running surface is {surface}, so this key is not used by any call and is shown read-only. Switch surfaces to edit it.',
+        inactiveBadge: 'Read-only',
         emptyInput: 'Enter an API key before saving.',
         loadFailed: 'Could not read key status: {message}',
         saveFailed: 'Save failed: {message}',
         clearFailed: 'Clear failed: {message}',
         purpose: 'Used for: {purpose}',
+        advice: 'Advice: {advice}',
+        surfaceSync: 'sync',
+        surfaceJobs: 'jobs',
+        siteCn: 'China',
+        siteIntl: 'International',
+        siteUnknown: 'Site not determined',
+        siteLabel: 'Site',
+        siteJudged: 'Site determined: {site} (balance currency {currency})',
+        siteFailed: 'Could not determine the site: {message}',
+        sitePending: 'The owning site is determined from the balance currency when the key is saved.',
         acctTitle: 'Account',
         acctRefresh: 'Refresh',
         acctRefreshing: 'Refreshing…',
@@ -181,12 +243,14 @@ window.__ModuleLoader__.load({
 .media-rh-page h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
 .media-rh-intro { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
 .media-rh-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--dsw-alias-bg-layer-1); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 12px; }
+.media-rh-card.is-inactive { opacity: 0.72; }
 .media-rh-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .media-rh-provider { font-size: 14px; line-height: 22px; font-weight: 600; }
 .media-rh-purpose { margin: 2px 0 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .media-rh-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .media-rh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); }
 .media-rh-status.is-on .media-rh-dot { background: var(--dsw-alias-state-success-primary); }
+.media-rh-badge { display: inline-flex; align-items: center; padding: 1px 6px; font-size: 11px; line-height: 16px; border-radius: 4px; color: var(--dsw-alias-label-secondary); border: 0.5px solid var(--dsw-alias-border-l2); }
 .media-rh-input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 10px; font-size: 13px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base); border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 8px; outline: none; }
 .media-rh-input:focus { border-color: var(--dsw-alias-brand-primary); }
 .media-rh-input:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -202,6 +266,7 @@ window.__ModuleLoader__.load({
 .media-rh-msg.is-error { color: var(--dsw-alias-state-error-primary); }
 .media-rh-error { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-state-error-primary); }
 .media-rh-muted { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.media-rh-site { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .media-rh-account { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--dsw-alias-bg-layer-2); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
 .media-rh-account-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .media-rh-account-title { font-size: 12px; line-height: 18px; font-weight: 600; letter-spacing: 0.04em; color: var(--dsw-alias-label-secondary); text-transform: uppercase; }
@@ -276,6 +341,13 @@ window.__ModuleLoader__.load({
       if (status === 'no_balance') return 'warn'
       if (status === 'no_key') return 'idle'
       return 'error'
+    }
+
+    /** The display name of one site id. */
+    function siteLabel(t, site) {
+      if (site === 'cn') return t('siteCn')
+      if (site === 'intl') return t('siteIntl')
+      return t('siteUnknown')
     }
 
     /** One account panel, bound to its own key. */
@@ -374,15 +446,18 @@ window.__ModuleLoader__.load({
     }
 
     /** One key card with its own account panel. */
-    function KeyCard({ ctx, t, entry, info, load, onChanged, status, loading, error, onRefresh }) {
+    function KeyCard({ ctx, t, entry, info, load, onChanged, status, loading, error, onRefresh, active, surfaceName, judge }) {
       const ref = entry.ref
       const [draft, setDraft] = React.useState('')
       const [busy, setBusy] = React.useState(null)
       const [message, setMessage] = React.useState(null)
+      const [judged, setJudged] = React.useState(null)
       const configured = info !== undefined && info.configured === true
       const managed = configured && info.source === 'file'
       const writable = info === undefined || info.writable !== false
-      const disabled = busy !== null || !writable
+      // The key the running surface does not read is shown, not edited.
+      const editable = active && writable
+      const disabled = busy !== null || !editable
 
       const report = (kind, text) => setMessage({ kind, text })
 
@@ -398,10 +473,23 @@ window.__ModuleLoader__.load({
           .then((response) => {
             unwrap(response)
             setDraft('')
-            report('ok', t('saved'))
-            return load().then(() => {
-              if (typeof onChanged === 'function') onChanged()
-            })
+            // The key is stored; judge its site so the tools know which host
+            // to call. A judgment failure does not undo the save.
+            return Promise.resolve()
+              .then(() => judge(entry))
+              .then((verdict) => {
+                setJudged({ kind: 'ok', site: verdict.site, currency: verdict.currency })
+              })
+              .catch((err) => {
+                setJudged({ kind: 'error', message: messageOf(err) })
+              })
+              .then(() => load())
+              .then(() => {
+                if (typeof onChanged === 'function') onChanged()
+              })
+              .then(() => {
+                report('ok', t('saved'))
+              })
           })
           .catch((err) => report('error', t('saveFailed', { message: messageOf(err) })))
           .then(() => setBusy(null))
@@ -414,6 +502,7 @@ window.__ModuleLoader__.load({
           .then((response) => {
             unwrap(response)
             setDraft('')
+            setJudged(null)
             report('ok', t('cleared'))
             return load().then(() => {
               if (typeof onChanged === 'function') onChanged()
@@ -427,17 +516,37 @@ window.__ModuleLoader__.load({
         if (event.key === 'Enter' && !disabled) save()
       }
 
-      return h('div', { className: 'media-rh-card' },
+      // The site shown is the one this session judged, falling back to the
+      // verdict the Host already stores in the plugin Config.
+      const storedSite = status !== null && typeof status === 'object' && typeof status.site === 'string'
+        ? status.site
+        : undefined
+      const siteLine = judged !== null
+        ? (judged.kind === 'error'
+            ? h('p', { className: 'media-rh-account-error' }, t('siteFailed', { message: judged.message }))
+            : h('p', { className: 'media-rh-muted' }, t('siteJudged', {
+                site: siteLabel(t, judged.site),
+                currency: judged.currency,
+              })))
+        : storedSite !== undefined
+          ? h('p', { className: 'media-rh-muted' }, t('siteLabel') + '：' + siteLabel(t, storedSite))
+          : h('p', { className: 'media-rh-muted' }, t('sitePending'))
+
+      return h('div', { className: 'media-rh-card' + (active ? '' : ' is-inactive') },
         h('div', { className: 'media-rh-card-head' },
           h('div', null,
             h('div', { className: 'media-rh-provider' }, entry.provider),
-            h('p', { className: 'media-rh-purpose' }, t('purpose', { purpose: entry.purpose }))
+            h('p', { className: 'media-rh-purpose' }, t('purpose', { purpose: entry.purpose })),
+            h('p', { className: 'media-rh-purpose' }, t('advice', { advice: entry.advice }))
           ),
           h('span', { className: 'media-rh-status' + (configured ? ' is-on' : '') },
             h('span', { className: 'media-rh-dot', 'aria-hidden': 'true' }),
             statusText(t, info)
           )
         ),
+        active
+          ? null
+          : h('span', { className: 'media-rh-badge' }, t('inactiveBadge')),
         h('input', {
           className: 'media-rh-input',
           type: 'password',
@@ -447,6 +556,7 @@ window.__ModuleLoader__.load({
           placeholder: configured ? t('replacePlaceholder') : t('inputPlaceholder'),
           'aria-label': entry.provider + ' ' + ref,
           disabled,
+          readOnly: !active,
           onChange: (event) => setDraft(event.target.value),
           onKeyDown,
         }),
@@ -457,7 +567,7 @@ window.__ModuleLoader__.load({
             disabled: disabled || draft.trim().length === 0,
             onClick: save,
           }, busy === 'saving' ? t('saving') : t('save')),
-          configured && managed
+          configured && managed && active
             ? h('button', {
                 type: 'button',
                 className: 'media-rh-btn is-danger',
@@ -472,7 +582,9 @@ window.__ModuleLoader__.load({
               }, message.text)
             : null
         ),
-        writable ? null : h('p', { className: 'media-rh-muted' }, t('readonlyNote')),
+        !writable ? h('p', { className: 'media-rh-muted' }, t('readonlyNote')) : null,
+        !active ? h('p', { className: 'media-rh-muted' }, t('inactiveNote', { surface: surfaceName })) : null,
+        siteLine,
         h(AccountPanel, { t, status, loading, error, onRefresh })
       )
     }
@@ -485,11 +597,12 @@ window.__ModuleLoader__.load({
 
       const [infos, setInfos] = React.useState(null)
       const [loadError, setLoadError] = React.useState(null)
+      const [surface, setSurface] = React.useState('sync')
 
-      const [shared, setShared] = React.useState({ status: null, loading: false, error: null })
-      const [member, setMember] = React.useState({ status: null, loading: false, error: null })
-      const sharedSeq = React.useRef(0)
-      const memberSeq = React.useRef(0)
+      const [sync, setSync] = React.useState({ status: null, loading: false, error: null })
+      const [jobs, setJobs] = React.useState({ status: null, loading: false, error: null })
+      const syncSeq = React.useRef(0)
+      const jobsSeq = React.useRef(0)
 
       const load = React.useCallback(() => {
         return ctx.remote.credentials.describe(KEYS.map(entry => entry.ref))
@@ -502,8 +615,8 @@ window.__ModuleLoader__.load({
 
       const refreshOne = React.useCallback((which) => {
         const remote = ctx.get('remote.mediaRunningHub')
-        const setter = which === 'sharedStatus' ? setShared : setMember
-        const seqRef = which === 'sharedStatus' ? sharedSeq : memberSeq
+        const setter = which === 'syncStatus' ? setSync : setJobs
+        const seqRef = which === 'syncStatus' ? syncSeq : jobsSeq
         if (remote === undefined || typeof remote[which] !== 'function') {
           setter({ status: null, loading: false, error: ctx.locale.bind(NS)('acctUnavailable') })
           return
@@ -513,7 +626,14 @@ window.__ModuleLoader__.load({
         remote[which]()
           .then((response) => {
             if (current !== seqRef.current) return
-            setter({ status: unwrap(response, 'account status request was refused'), loading: false, error: null })
+            const status = unwrap(response, 'account status request was refused')
+            // The Host reports the running surface and the stored site
+            // verdict alongside the account, so the page needs no second
+            // request to know which card is editable.
+            if (status !== null && typeof status === 'object') {
+              if (typeof status.surface === 'string') setSurface(status.surface)
+            }
+            setter({ status, loading: false, error: null })
           })
           .catch((err) => {
             if (current !== seqRef.current) return
@@ -521,21 +641,45 @@ window.__ModuleLoader__.load({
           })
       }, [])
 
-      const refreshShared = React.useCallback(() => refreshOne('sharedStatus'), [refreshOne])
-      const refreshMember = React.useCallback(() => refreshOne('memberStatus'), [refreshOne])
+      const refreshSync = React.useCallback(() => refreshOne('syncStatus'), [refreshOne])
+      const refreshJobs = React.useCallback(() => refreshOne('jobsStatus'), [refreshOne])
+
+      /**
+       * Judge the site of one saved key.
+       *
+       * The Host stores the verdict in the plugin Config, so the tools read it
+       * on every call instead of asking the provider which host to use.
+       */
+      const judge = React.useCallback((entry) => {
+        const remote = ctx.get('remote.mediaRunningHub')
+        const method = entry.surface === 'sync' ? 'syncSite' : 'jobsSite'
+        if (remote === undefined || typeof remote[method] !== 'function') {
+          return Promise.reject(new Error(t('acctUnavailable')))
+        }
+        return remote[method]().then((response) => {
+          const verdict = unwrap(response, 'site judgment was refused')
+          if (verdict === null || typeof verdict !== 'object' || verdict.status !== 'ok') {
+            const message = verdict && typeof verdict.message === 'string' ? verdict.message : '未知原因'
+            throw new Error(message)
+          }
+          return verdict
+        })
+      }, [])
 
       React.useEffect(() => {
         load()
-        refreshShared()
-        refreshMember()
-      }, [load, refreshShared, refreshMember])
+        refreshSync()
+        refreshJobs()
+      }, [load, refreshSync, refreshJobs])
 
       const panelFor = (entry) => {
-        if (entry.status === 'sharedStatus') {
-          return { status: shared.status, loading: shared.loading, error: shared.error, onRefresh: refreshShared }
+        if (entry.surface === 'sync') {
+          return { status: sync.status, loading: sync.loading, error: sync.error, onRefresh: refreshSync }
         }
-        return { status: member.status, loading: member.loading, error: member.error, onRefresh: refreshMember }
+        return { status: jobs.status, loading: jobs.loading, error: jobs.error, onRefresh: refreshJobs }
       }
+
+      const surfaceName = surface === 'jobs' ? t('surfaceJobs') : t('surfaceSync')
 
       return h('section', { className: 'media-rh-page' },
         h('style', null, CSS),
@@ -560,6 +704,9 @@ window.__ModuleLoader__.load({
                 loading: panel.loading,
                 error: panel.error,
                 onRefresh: panel.onRefresh,
+                active: entry.surface === surface,
+                surfaceName,
+                judge,
               })
             })
       )

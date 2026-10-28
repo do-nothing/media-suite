@@ -1,7 +1,12 @@
 /**
- * Helpers shared by the RunningHub tools: credential resolution, display-safe
+ * Helper shared by the RunningHub tools: credential resolution, display-safe
  * error mapping, deadline handling, session-directory resolution, output
- * naming, and media upload.
+ * naming, media upload, and site resolution.
+ *
+ * A key is not tied to a site by name or type: the account-status response's
+ * `currency` decides which host the key belongs to (`USD` → international,
+ * `CNY` → China), and that verdict is stored in the plugin Config at
+ * configuration time.
  */
 
 import { openAsBlob } from 'node:fs'
@@ -9,12 +14,114 @@ import { createHash } from 'node:crypto'
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, isAbsolute, resolve } from 'node:path'
 
-export const BASE_URL = 'https://www.runninghub.cn/openapi/v2'
-export const UPLOAD_URL = 'https://www.runninghub.cn/openapi/v2/media/upload/binary'
-export const STATUS_URL = 'https://www.runninghub.cn/uc/openapi/accountStatus'
+/** The two RunningHub sites, and the host each one serves. */
+export const SITES = {
+  cn: { host: 'https://www.runninghub.cn', label: '中国站', currency: 'CNY' },
+  intl: { host: 'https://www.runninghub.ai', label: '国际站', currency: 'USD' },
+}
 
-export const SHARED_REF = 'RUNNINGHUB_SHARED_API_KEY'
-export const MEMBER_REF = 'RUNNINGHUB_MEMBER_API_KEY'
+export const SYNC_REF = 'RUNNINGHUB_SYNC_API_KEY'
+export const JOBS_REF = 'RUNNINGHUB_JOBS_API_KEY'
+
+/** The account-status path, relative to either site host. */
+const STATUS_PATH = '/uc/openapi/accountStatus'
+
+/**
+ * Resolve the host for one site id.
+ *
+ * @param site - `'cn' | 'intl'`, or undefined when the site is not yet known.
+ */
+export function hostOf(site) {
+  return (SITES[site] ?? SITES.cn).host
+}
+
+/** The API base for one site. */
+export function baseUrlOf(site) {
+  return hostOf(site) + '/openapi/v2'
+}
+
+/** The upload endpoint for one site. */
+export function uploadUrlOf(site) {
+  return hostOf(site) + '/openapi/v2/media/upload/binary'
+}
+
+/** The account-status endpoint for one site. */
+export function statusUrlOf(site) {
+  return hostOf(site) + STATUS_PATH
+}
+
+/**
+ * Map an account-status `currency` to a site id.
+ *
+ * `USD` is the international site and `CNY` the China site. An unknown currency
+ * returns undefined so the caller can report it instead of guessing.
+ */
+export function siteOfCurrency(currency) {
+  if (typeof currency !== 'string') return undefined
+  const value = currency.trim().toUpperCase()
+  if (value === 'USD') return 'intl'
+  if (value === 'CNY' || value === 'RMB') return 'cn'
+  return undefined
+}
+
+/**
+ * Ask one key's account status and derive its site.
+ *
+ * Used at configuration time, when the key is saved, so later calls only read
+ * the stored verdict. Returns `{ ok, site, apiType, currency, balance }` or
+ * `{ ok: false, code, message }` with a display-safe message.
+ *
+ * @param apiKey - the resolved key value.
+ */
+export async function resolveSiteForKey(apiKey) {
+  let response
+  try {
+    response = await fetch(statusUrlOf('cn'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ apikey: apiKey }),
+    })
+  } catch {
+    return { ok: false, code: 'UNREACHABLE', message: '无法连接 RunningHub。' }
+  }
+
+  const raw = await response.text()
+  let payload
+  try {
+    payload = JSON.parse(raw)
+  } catch {
+    return { ok: false, code: 'BAD_RESPONSE', message: 'RunningHub 返回了无法识别的响应。' }
+  }
+  if (payload?.code !== 0) {
+    return {
+      ok: false,
+      code: 'INVALID_KEY',
+      message: `RunningHub 拒绝了该 Key：${payload?.msg ?? payload?.code ?? '未知原因'}`,
+    }
+  }
+
+  const data = payload?.data ?? {}
+  const currency = typeof data.currency === 'string' ? data.currency : ''
+  const site = siteOfCurrency(currency)
+  if (site === undefined) {
+    return {
+      ok: false,
+      code: 'UNKNOWN_CURRENCY',
+      message: `无法从余额币种判断站点（currency=${currency || '空'}）；目前只支持 USD / CNY。`,
+    }
+  }
+
+  return {
+    ok: true,
+    site,
+    currency,
+    apiType: typeof data.apiType === 'string' ? data.apiType : '',
+    balance: typeof data.remainMoney === 'string' ? data.remainMoney : '',
+  }
+}
 
 /** An error whose code is useful in the model-facing message. */
 export class ToolError extends Error {
@@ -23,6 +130,67 @@ export class ToolError extends Error {
     this.name = 'MediaRunningHubError'
     this.code = code
   }
+}
+
+/**
+ * Read one Config value that may be a live reference or a plain value.
+ *
+ * A `Volatile<T>` field arrives as a reference that is read with `.get()`; an
+ * ordinary field arrives as its plain value. Site verdicts are stored in
+ * Config, so the reader has to accept both shapes.
+ *
+ * @param value - the raw Config field.
+ */
+export function configValue(value) {
+  if (value === null || value === undefined) return undefined
+  if (typeof value === 'object' && typeof value.get === 'function') {
+    try {
+      return value.get()
+    } catch {
+      return undefined
+    }
+  }
+  return value
+}
+
+/**
+ * The site a key belongs to, as stored in Config at configuration time.
+ *
+ * The verdict was written when the key was saved, so a normal call never asks
+ * the provider which site it belongs to. A missing verdict means the key was
+ * never saved through the settings page, and the caller reports that instead
+ * of guessing a host.
+ *
+ * @param config - the plugin Config.
+ * @param field - `syncSite` or `jobsSite`.
+ */
+export function siteOf(config, field) {
+  const value = configValue(config?.[field])
+  return value === 'cn' || value === 'intl' ? value : undefined
+}
+
+/**
+ * Persist one site verdict into the plugin Config.
+ *
+ * The verdict is a derived value: it is written when the key is saved and read
+ * by the tools on every call, so it is a volatile Config field. A volatile
+ * write updates the running reference without remounting the plugin, which
+ * keeps the tool list stable while the user swaps a key.
+ *
+ * The write goes through the settings service, which owns the profile patch
+ * write and the revision check. The namespace is the profile entry id, the
+ * same id the plugin's own patch declares.
+ *
+ * @param ctx - plugin context.
+ * @param ns - the profile entry id of this plugin.
+ * @param field - `syncSite` or `jobsSite`.
+ * @param site - `cn` or `intl`.
+ */
+export async function persistSite(ctx, ns, field, site) {
+  const settings = ctx.get('settings')
+  if (settings === undefined) return false
+  await settings.update(ns, { [field]: site })
+  return true
 }
 
 /** Whether a reference is passed to the provider instead of read locally. */
@@ -194,13 +362,16 @@ export async function postJson(url, body, apiKey, signal) {
 /**
  * Upload one local media file and return the provider-side reference.
  *
+ * The upload endpoint is site-bound: the key must belong to the same site as the
+ * host, which is why the caller passes the resolved site alongside the key.
+ *
  * `/openapi/v2/media/upload/binary` authenticates with the `Authorization`
  * header and takes exactly one form field, `file`. It answers with
  * `data.download_url` and `data.fileName`; the value usable as an `imageUrls`
  * entry is the download URL, because the standard model API consumes URLs rather
  * than node file names (those belong to the workflow/app APIs).
  */
-export async function uploadFile(filePath, apiKey, signal) {
+export async function uploadFile(filePath, apiKey, site, signal) {
   let info
   try {
     info = await stat(filePath)
@@ -219,7 +390,7 @@ export async function uploadFile(filePath, apiKey, signal) {
 
   let response
   try {
-    response = await fetch(UPLOAD_URL, {
+    response = await fetch(uploadUrlOf(site), {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
@@ -252,10 +423,9 @@ export async function uploadFile(filePath, apiKey, signal) {
  * Resolve one media reference for a RunningHub node value.
  *
  * A remote URL passes through; a local file at or below `inlineLimitBytes` is
- * sent as a data URI, larger files are uploaded because RunningHub requires a
- * provider-side file name for them.
+ * sent as a data URI, larger files are uploaded to the key's own site.
  */
-export async function resolveMedia(ctx, exec, ref, apiKey, signal, inlineLimitBytes) {
+export async function resolveMedia(ctx, exec, ref, apiKey, site, signal, inlineLimitBytes) {
   if (isRemote(ref)) return ref
   const path = localPathOf(ctx, exec, ref)
   let info
@@ -266,7 +436,7 @@ export async function resolveMedia(ctx, exec, ref, apiKey, signal, inlineLimitBy
   }
   if (!info.isFile()) throw new ToolError('INVALID_MEDIA', `不是文件：${path}`)
   if (inlineLimitBytes !== undefined && info.size > inlineLimitBytes) {
-    return uploadFile(path, apiKey, signal)
+    return uploadFile(path, apiKey, site, signal)
   }
 
   const { readFile } = await import('node:fs/promises')

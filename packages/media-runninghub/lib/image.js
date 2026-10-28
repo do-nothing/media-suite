@@ -6,20 +6,23 @@
  * `imageUrls`. The call is synchronous — submit, poll until the task settles,
  * then download the first result below the configured output root.
  *
- * `sync` surface uses the enterprise-shared key, because RunningHub's model API
- * only accepts that key type.
+ * The sync surface uses the sync key. Which host the call goes to is decided by
+ * the site verdict stored in Config when the key was saved, because the
+ * upload endpoint is site-bound: a key only uploads to the host of its own
+ * site.
  */
 
 import {
-  BASE_URL,
-  SHARED_REF,
+  SYNC_REF,
   ToolError,
   apiKeyOf,
+  baseUrlOf,
   downloadResult,
   extensionFor,
   postJson,
   providerError,
   resolveMedia,
+  siteOf,
   stamp,
   textHash,
   withDeadline,
@@ -72,8 +75,8 @@ function sleep(ms, signal) {
  * use a `code`/`msg` envelope, so the two shapes are distinguished by the
  * presence of `taskId` rather than by a status code.
  */
-async function submit(endpoint, payload, apiKey, signal) {
-  const result = await postJson(`${BASE_URL}/${endpoint}`, payload, apiKey, signal)
+async function submit(endpoint, payload, apiKey, site, signal) {
+  const result = await postJson(`${baseUrlOf(site)}/${endpoint}`, payload, apiKey, signal)
   const taskId = result.payload?.taskId ?? result.payload?.data?.taskId
   if (result.ok && (typeof taskId === 'string' || typeof taskId === 'number')) {
     if (result.payload?.errorCode !== undefined && result.payload.errorCode !== '') {
@@ -85,13 +88,13 @@ async function submit(endpoint, payload, apiKey, signal) {
 }
 
 /** Poll one task until it settles; returns the settled task object. */
-async function poll(taskId, apiKey, signal) {
+async function poll(taskId, apiKey, site, signal) {
   const deadline = Date.now() + RESULT_TIMEOUT_MS
   let lastStatus = 'UNKNOWN'
 
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS, signal)
-    const result = await postJson(`${BASE_URL}/query`, { taskId }, apiKey, signal)
+    const result = await postJson(`${baseUrlOf(site)}/query`, { taskId }, apiKey, signal)
     const task = result.payload?.data ?? result.payload
     if (!result.ok || task === null || typeof task !== 'object') {
       throw providerError(result.payload, apiKey, result.status)
@@ -101,7 +104,11 @@ async function poll(taskId, apiKey, signal) {
     if (lastStatus === 'SUCCESS') return task
     if (lastStatus === 'FAILED') {
       const detail = task.errorMessage ?? task.failedReason?.errorMessage ?? task.errorCode ?? '未知原因'
-      throw new ToolError('TASK_FAILED', `RunningHub 任务失败：${detail}`)
+      throw new ToolError('TASK_FAILED',
+        `RunningHub 任务失败：${typeof detail === 'string' ? detail.slice(0, 200) : '未知原因'}`)
+    }
+    if (lastStatus === 'CANCELED' || lastStatus === 'CANCELLED') {
+      throw new ToolError('TASK_FAILED', 'RunningHub 任务已取消。')
     }
   }
 
@@ -170,7 +177,7 @@ function createRunningHubImageTool(ctx, config) {
   return {
     name: 'runninghub_image',
     description:
-      '用 RunningHub​ Nano​ Banana 2 生成图片：不传 images 就是文生图，传 1–10 张参考图就是图生图/改图。'
+      '用 RunningHub Nano Banana 2 生成图片：不传 images 就是文生图，传 1–10 张参考图就是图生图/改图。'
       + '同步执行，一次返回一张图片文件。'
       + '适合单张出图、改图、多图融合；批量生成请等任务池能力。',
     parameters: {
@@ -235,7 +242,17 @@ function createRunningHubImageTool(ctx, config) {
     timeoutMs: RESULT_TIMEOUT_MS + REQUEST_TIMEOUT_MS,
     async execute(args, exec) {
       const input = validateArgs(args)
-      const apiKey = await apiKeyOf(ctx, SHARED_REF, '企业级-共享，用于模型 API')
+      const apiKey = await apiKeyOf(ctx, SYNC_REF, '同步模式，用于模型 API')
+
+      // The site is a configuration-time verdict, read live so a key swapped
+      // in the settings page takes effect on the next call.
+      const site = siteOf(config, 'syncSite')
+      if (site === undefined) {
+        throw new ToolError(
+          'SITE_UNKNOWN',
+          '尚未判定 RunningHub Key 所属站点。请打开“RunningHub 媒体”设置页保存该 Key，站点会按余额币种自动判定。',
+        )
+      }
 
       const endpoints = CHANNEL_ENDPOINTS[channel]
       const mode = input.images.length === 0 ? 'text-to-image' : 'image-to-image'
@@ -249,18 +266,18 @@ function createRunningHubImageTool(ctx, config) {
       if (input.images.length > 0) {
         const resolved = []
         for (const image of input.images) {
-          resolved.push(await resolveMedia(ctx, exec, image, apiKey, exec.signal, INLINE_LIMIT_BYTES))
+          resolved.push(await resolveMedia(ctx, exec, image, apiKey, site, exec.signal, INLINE_LIMIT_BYTES))
         }
         payload.imageUrls = resolved
       }
 
       const taskId = await withDeadline(
         exec,
-        (signal) => submit(input.images.length === 0 ? endpoints.text : endpoints.edit, payload, apiKey, signal),
+        (signal) => submit(input.images.length === 0 ? endpoints.text : endpoints.edit, payload, apiKey, site, signal),
         REQUEST_TIMEOUT_MS,
       )
 
-      const data = await withDeadline(exec, (signal) => poll(taskId, apiKey, signal), RESULT_TIMEOUT_MS)
+      const data = await withDeadline(exec, (signal) => poll(taskId, apiKey, site, signal), RESULT_TIMEOUT_MS)
 
       const result = Array.isArray(data.results) ? data.results[0] : undefined
       const url = result?.url ?? result?.outputUrl
