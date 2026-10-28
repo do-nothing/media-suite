@@ -1,0 +1,742 @@
+{
+  "schemaVersion": "rh-task-types/1",
+  "types": [
+    {
+      "typeId": "voice-clone-emo",
+      "version": 1,
+      "displayName": "IndexTTS2 音色克隆（带语气）",
+      "description": "输入要朗读的文字和一段参考人声（几秒以上、尽量干净无背景音），生成用该音色说话的音频。还可以再给一段带情绪的人声，让朗读带上同样的语气（开心、温柔、激动等）；情绪音频留空时使用工作流自带的默认语气。",
+      "workflowId": "2103675587473788929",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "text",
+          "label": "语音文字",
+          "type": "text",
+          "required": true,
+          "nodeId": "14",
+          "fieldName": "value"
+        },
+        {
+          "name": "referenceAudio",
+          "label": "参考人声（音色来源）",
+          "type": "audio",
+          "required": false,
+          "nodeId": "13",
+          "fieldName": "audio",
+          "accept": [".mp3", ".wav", ".m4a", ".m3a"]
+        },
+        {
+          "name": "emotionAudio",
+          "label": "情绪参考音频",
+          "type": "audio",
+          "required": false,
+          "nodeId": "15",
+          "fieldName": "audio",
+          "accept": [".mp3", ".wav", ".m4a", ".m3a"]
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "digital-human",
+      "version": 1,
+      "displayName": "数字人生成",
+      "description": "一张人物正面照 + 一段参考人声（只提取音色，不需要是成品配音）+ 要播报的文案：先用参考音色把文案合成为语音，再驱动照片里的人物对口型说话，生成口播数字人视频。",
+      "workflowId": "1968591880252469250",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "image",
+          "label": "人物照片",
+          "type": "image",
+          "required": true,
+          "nodeId": "133",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png"]
+        },
+        {
+          "name": "audio",
+          "label": "参考人声（只取音色）",
+          "type": "audio",
+          "required": true,
+          "nodeId": "204",
+          "fieldName": "audio",
+          "accept": [".mp3", ".wav", ".m4a", ".m3a"]
+        },
+        {
+          "name": "text",
+          "label": "播报文案",
+          "type": "text",
+          "required": true,
+          "nodeId": "205",
+          "fieldName": "text"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "music-yue2",
+      "version": 1,
+      "displayName": "YuE2 文生音乐（歌曲 / 纯音乐）",
+      "description": "YuE2（bf16 全精度）文生音乐：风格用标签式英文描述（留空=工作流预置 chill pop），歌词自定义（支持 [intro]/[verse]/[chorus]/[outro] 等分段标记）；省略歌词参数=工作流预置假歌词，生成结构规整的三段式乐曲。每个任务经 Mel-Band RoFormer 人声分离后产出三个 MP3：分离前混音（节点 10，带歌词时的完整歌曲成品）、伴奏（节点 56，纯音乐取此文件）、人声干声（节点 58）。时长参数为上限，实际时长按歌词长度计算，撞上限会硬截断。两处种子均为 randomize。",
+      "workflowId": "2105311858507993090",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "style",
+          "label": "音乐风格（标签式英文描述；留空=工作流预置 chill pop）",
+          "type": "text",
+          "required": false,
+          "nodeId": "27",
+          "fieldName": "value"
+        },
+        {
+          "name": "lyrics",
+          "label": "歌词（省略=预置假歌词；支持 [verse]/[chorus] 等标记）",
+          "type": "text",
+          "required": false,
+          "nodeId": "22",
+          "fieldName": "lyrics"
+        },
+        {
+          "name": "maxDuration",
+          "label": "最大时长（秒，上限值；默认 360）",
+          "type": "int",
+          "required": false,
+          "nodeId": "45",
+          "fieldName": "a"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "image-edit-banana2",
+      "version": 2,
+      "displayName": "全能图片（文生图 / 多图编辑，Nano Banana 2）",
+      "description": "Nano Banana 2（Gemini 3.1 Flash）全能图片编辑：不给图片=按文字生图；给 1 张=按指令改图；给 2～10 张=多图参考与融合（把不同图里的人物、服装、道具合成到一张画面）。费用提醒：本类型除 RH 算力币外还收第三方接口费（仅现金，实测约 ¥0.19/张）；纯文生图和常规改图请优先用不收现金的 Qwen Image 2.1 系列，需要 7 张以上多图融合或 Qwen 效果不达标时再用它。",
+      "workflowId": "2104426549608017921",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "prompt",
+          "label": "画面指令",
+          "type": "text",
+          "required": true,
+          "nodeId": "18",
+          "fieldName": "prompt"
+        },
+        {
+          "name": "image",
+          "label": "参考图片 1（留空=文生图）",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "3",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image2",
+          "label": "参考图片 2",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "7",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image3",
+          "label": "参考图片 3",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "8",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image4",
+          "label": "参考图片 4",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "17",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image5",
+          "label": "参考图片 5",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "11",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image6",
+          "label": "参考图片 6",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "15",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image7",
+          "label": "参考图片 7",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "12",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image8",
+          "label": "参考图片 8",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "13",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image9",
+          "label": "参考图片 9",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "16",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image10",
+          "label": "参考图片 10",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "14",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "aspectRatio",
+          "label": "画面比例",
+          "type": "enum",
+          "required": false,
+          "default": "3:4",
+          "enum": ["auto", "1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"],
+          "nodeId": "2",
+          "fieldName": "aspectRatio"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "image-gen-qwen",
+      "version": 1,
+      "displayName": "Qwen Image 2.1 文生图",
+      "description": "Qwen Image 2.1：用文字描述生成图片，提交时会自动把简短描述扩写为详细提示词，一句话也能出图。只扣 RH 算力币、不收第三方现金费，是文生图的首选。画面比例可选，默认 16:9。",
+      "workflowId": "2104415722230345730",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "prompt",
+          "label": "画面描述",
+          "type": "text",
+          "required": true,
+          "nodeId": "456",
+          "fieldName": "prompt"
+        },
+        {
+          "name": "aspectRatio",
+          "label": "画面比例",
+          "type": "enum",
+          "required": false,
+          "default": "16:9 (Widescreen)",
+          "enum": [
+            "1:1 (Square)",
+            "2:3 (Portrait Photo)",
+            "3:2 (Photo)",
+            "3:4 (Portrait Standard)",
+            "4:3 (Standard)",
+            "9:16 (Portrait Widescreen)",
+            "16:9 (Widescreen)",
+            "21:9 (Ultrawide)"
+          ],
+          "nodeId": "406",
+          "fieldName": "aspect_ratio"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "image-edit-qwen",
+      "version": 1,
+      "displayName": "Qwen Image 2.1 单图编辑",
+      "description": "Qwen Image 2.1：给 1 张图和编辑指令（如“换成海边背景”“去掉路人”），生成改好的图。只扣 RH 算力币、不收第三方现金费，是单图编辑的首选。画面比例可选，默认 16:9。",
+      "workflowId": "2104493095424454658",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "prompt",
+          "label": "编辑指令",
+          "type": "text",
+          "required": true,
+          "nodeId": "458",
+          "fieldName": "prompt"
+        },
+        {
+          "name": "image",
+          "label": "参考图片",
+          "type": "image",
+          "required": true,
+          "nodeId": "177",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "aspectRatio",
+          "label": "画面比例",
+          "type": "enum",
+          "required": false,
+          "default": "16:9 (Widescreen)",
+          "enum": [
+            "1:1 (Square)",
+            "2:3 (Portrait Photo)",
+            "3:2 (Photo)",
+            "3:4 (Portrait Standard)",
+            "4:3 (Standard)",
+            "9:16 (Portrait Widescreen)",
+            "16:9 (Widescreen)",
+            "21:9 (Ultrawide)"
+          ],
+          "nodeId": "410",
+          "fieldName": "aspect_ratio"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "image-edit-qwen-multi",
+      "version": 1,
+      "displayName": "Qwen Image 2.1 多图编辑",
+      "description": "Qwen Image 2.1：1 张主图（要被修改的图）+ 最多 5 张参考图（提供要换上的服装、配饰、姿势、长相元素等）+ 编辑指令，按需传 2～6 张图，多余图槽留空即可。典型用途：换装、换配饰、参考姿势合成。只扣 RH 算力币、不收第三方现金费；需要 7～10 张图融合时才用 Nano Banana 2。默认 16:9。",
+      "workflowId": "2108378084633300993",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "prompt",
+          "label": "编辑指令",
+          "type": "text",
+          "required": true,
+          "nodeId": "494",
+          "fieldName": "prompt"
+        },
+        {
+          "name": "image",
+          "label": "主图（图1）",
+          "type": "image",
+          "required": true,
+          "nodeId": "420",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image2",
+          "label": "参考图片 2",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "432",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image3",
+          "label": "参考图片 3",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "433",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image4",
+          "label": "参考图片 4",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "436",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image5",
+          "label": "参考图片 5",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "435",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image6",
+          "label": "参考图片 6",
+          "type": "image",
+          "required": false,
+          "default": "",
+          "nodeId": "434",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "aspectRatio",
+          "label": "画面比例",
+          "type": "enum",
+          "required": false,
+          "default": "16:9 (Widescreen)",
+          "enum": [
+            "1:1 (Square)",
+            "2:3 (Portrait Photo)",
+            "3:2 (Photo)",
+            "3:4 (Portrait Standard)",
+            "4:3 (Standard)",
+            "9:16 (Portrait Widescreen)",
+            "16:9 (Widescreen)",
+            "21:9 (Ultrawide)"
+          ],
+          "nodeId": "424",
+          "fieldName": "aspect_ratio"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "i2v-minimax-h3-first-frame",
+      "version": 1,
+      "displayName": "MiniMax H3 首帧生视频",
+      "description": "一张起始画面图 + 画面/运镜描述，生成带原生音效的短视频，这张图就是视频第一帧。适合“让一张图动起来”的简单需求；多角色、动作/运镜迁移、视频续写或参考音色配音请改用“多参考生视频”。时长 4–15 秒（默认 5 秒），画幅可选：1=1:1，2=3:4，3=4:3，4=9:16，5=16:9，6=跟随首帧。",
+      "workflowId": "2104781561072799745",
+      "instanceType": "plus",
+      "params": [
+        {
+          "name": "image",
+          "label": "首帧图片",
+          "type": "image",
+          "required": true,
+          "nodeId": "4",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "prompt",
+          "label": "画面/运镜指令",
+          "type": "text",
+          "required": true,
+          "nodeId": "7",
+          "fieldName": "prompt"
+        },
+        {
+          "name": "durationSeconds",
+          "label": "时长（秒）",
+          "type": "int",
+          "required": false,
+          "default": 5,
+          "nodeId": "6",
+          "fieldName": "duration_seconds"
+        },
+        {
+          "name": "aspectSelect",
+          "label": "画幅（1=1:1 2=3:4 3=4:3 4=9:16 5=16:9 6=跟随首帧）",
+          "type": "int",
+          "required": false,
+          "default": 3,
+          "nodeId": "24",
+          "fieldName": "select"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "i2v-minimax-h3-first-last-frame",
+      "version": 1,
+      "displayName": "MiniMax H3 首尾帧生视频",
+      "description": "首帧图 + 尾帧图 + 分段提示词 → 从首帧自然过渡到尾帧、带音效的短视频（4–15 秒，默认 5 秒）。尾帧必填，置空会渲染失败；仅需首帧请用「MiniMax H3 首帧生视频」。建议两帧同主体同构图、仅姿态变化。画幅 1=1:1，2=3:4，3=4:3，4=9:16，5=16:9，6=跟随首帧（默认 3）。",
+      "workflowId": "2105350415700291585",
+      "instanceType": "plus",
+      "params": [
+        {
+          "name": "firstFrame",
+          "label": "首帧图片",
+          "type": "image",
+          "required": true,
+          "nodeId": "6",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "lastFrame",
+          "label": "尾帧图片",
+          "type": "image",
+          "required": true,
+          "nodeId": "4",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "prompt",
+          "label": "时间线分段提示词（如 0-2s: ... / 2-5s: ...）",
+          "type": "text",
+          "required": true,
+          "nodeId": "8",
+          "fieldName": "prompt"
+        },
+        {
+          "name": "durationSeconds",
+          "label": "时长（秒，4–15）",
+          "type": "int",
+          "required": false,
+          "default": 5,
+          "nodeId": "7",
+          "fieldName": "duration_seconds"
+        },
+        {
+          "name": "aspectSelect",
+          "label": "画幅（1=1:1 2=3:4 3=4:3 4=9:16 5=16:9 6=跟随首帧）",
+          "type": "int",
+          "required": false,
+          "default": 3,
+          "nodeId": "24",
+          "fieldName": "select"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "i2v-minimax-h3-multi-ref",
+      "version": 1,
+      "displayName": "MiniMax H3 多参考生视频",
+      "description": "高级参考生视频：最多 9 张参考图 + 3 段参考视频 + 3 段参考音频，配合六段式提示词，生成带台词和音效的短视频。典型玩法：①多图锁定角色长相与场景；②用一段视频做动作/运镜迁移（图片定“谁来演”，视频定“演什么动作”）或续写已有视频；③给一段人声用其音色念新台词，或整轨复用旁白/音效。重要：要把某段视频里的主角换成别的主体时，不要挂那段源视频（主体身份会被源视频锚定），只给目标主体的图片即可。提示词必须按 references/task-pool.md 文末附录 B 的六段式格式写。时长 4–15 秒（默认 10 秒，16:9），plus 实例，费用明显高于“首帧生视频”。",
+      "workflowId": "2104772802795630593",
+      "instanceType": "plus",
+      "params": [
+        {
+          "name": "prompt",
+          "label": "六段式提示词（写法见 references/task-pool.md）",
+          "type": "text",
+          "required": true,
+          "nodeId": "263",
+          "fieldName": "text"
+        },
+        {
+          "name": "image",
+          "label": "参考图 1（主参考）",
+          "type": "image",
+          "required": true,
+          "nodeId": "51",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image2",
+          "label": "参考图 2",
+          "type": "image",
+          "required": false,
+          "default": "None",
+          "nodeId": "49",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image3",
+          "label": "参考图 3",
+          "type": "image",
+          "required": false,
+          "default": "None",
+          "nodeId": "50",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image4",
+          "label": "参考图 4",
+          "type": "image",
+          "required": false,
+          "default": "None",
+          "nodeId": "43",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image5",
+          "label": "参考图 5",
+          "type": "image",
+          "required": false,
+          "default": "None",
+          "nodeId": "19",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image6",
+          "label": "参考图 6",
+          "type": "image",
+          "required": false,
+          "default": "None",
+          "nodeId": "23",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image7",
+          "label": "参考图 7",
+          "type": "image",
+          "required": false,
+          "default": "None",
+          "nodeId": "199",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image8",
+          "label": "参考图 8",
+          "type": "image",
+          "required": false,
+          "default": "None",
+          "nodeId": "200",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "image9",
+          "label": "参考图 9",
+          "type": "image",
+          "required": false,
+          "default": "None",
+          "nodeId": "201",
+          "fieldName": "image",
+          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+        },
+        {
+          "name": "audio",
+          "label": "参考音频 1（音色参考/旁白复用）",
+          "type": "audio",
+          "required": false,
+          "default": "None",
+          "nodeId": "48",
+          "fieldName": "audio",
+          "accept": [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"]
+        },
+        {
+          "name": "audio2",
+          "label": "参考音频 2",
+          "type": "audio",
+          "required": false,
+          "default": "None",
+          "nodeId": "14",
+          "fieldName": "audio",
+          "accept": [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"]
+        },
+        {
+          "name": "audio3",
+          "label": "参考音频 3",
+          "type": "audio",
+          "required": false,
+          "default": "None",
+          "nodeId": "15",
+          "fieldName": "audio",
+          "accept": [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"]
+        },
+        {
+          "name": "video",
+          "label": "参考视频 1（动作/运镜迁移、续写、编辑源）",
+          "type": "video",
+          "required": false,
+          "default": "",
+          "nodeId": "27",
+          "fieldName": "video",
+          "accept": [".mp4", ".mov", ".webm", ".mkv", ".avi"]
+        },
+        {
+          "name": "video2",
+          "label": "参考视频 2",
+          "type": "video",
+          "required": false,
+          "default": "",
+          "nodeId": "25",
+          "fieldName": "video",
+          "accept": [".mp4", ".mov", ".webm", ".mkv", ".avi"]
+        },
+        {
+          "name": "video3",
+          "label": "参考视频 3",
+          "type": "video",
+          "required": false,
+          "default": "",
+          "nodeId": "26",
+          "fieldName": "video",
+          "accept": [".mp4", ".mov", ".webm", ".mkv", ".avi"]
+        },
+        {
+          "name": "durationSeconds",
+          "label": "时长（秒）",
+          "type": "float",
+          "required": false,
+          "default": 10,
+          "nodeId": "259",
+          "fieldName": "value"
+        },
+        {
+          "name": "aspectRatio",
+          "label": "画面比例",
+          "type": "enum",
+          "required": false,
+          "default": "16:9 (Widescreen)",
+          "enum": [
+            "1:1 (Square)",
+            "2:3 (Portrait Photo)",
+            "3:2 (Photo)",
+            "3:4 (Portrait Standard)",
+            "4:3 (Standard)",
+            "9:16 (Portrait Widescreen)",
+            "16:9 (Widescreen)",
+            "21:9 (Ultrawide)"
+          ],
+          "nodeId": "252",
+          "fieldName": "aspect_ratio"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
+      "typeId": "vocal-separation-melband",
+      "version": 1,
+      "displayName": "Mel-Band RoFormer 人声分离（人声 / 伴奏）",
+      "description": "上传一首歌（mp3/wav/flac 等），用 Mel-Band RoFormer 分离出两条音轨：人声干声（节点 4，Vocals_）和伴奏（节点 5，Instruments_），不含歌词提取。适合提取伴奏做翻唱、抽人声做音色参考或后续处理。",
+      "workflowId": "2114844018264858625",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "audio",
+          "label": "待分离音频（整首歌）",
+          "type": "audio",
+          "required": true,
+          "nodeId": "1",
+          "fieldName": "audio",
+          "accept": [".mp3", ".wav", ".m4a", ".m3a", ".flac", ".aac", ".ogg"]
+        }
+      ],
+      "fixedOverrides": []
+    }
+  ]
+}

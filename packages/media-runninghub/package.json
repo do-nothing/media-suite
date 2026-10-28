@@ -8,6 +8,7 @@
     ".": "./index.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
+    "./config/task-types.json": "./config/task-types.json",
     "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
@@ -16,6 +17,8 @@
     "lib/*.js",
     "client.js",
     "cordis.patch.yml",
+    "config/task-types.json",
+    "skill/runninghub-workflow/SKILL.md",
     "locale/*.json",
     "icon.svg",
     "README.md"

@@ -23,6 +23,9 @@
  */
 
 import { registerRunningHubSync } from './lib/image.js'
+import { setPoolConfig } from './lib/pool/config.js'
+import { registerWorkflowSkill } from './lib/pool/skill.js'
+import { registerWorkflowTools } from './lib/pool/tools.js'
 import {
   JOBS_REF,
   SYNC_REF,
@@ -57,14 +60,18 @@ const NAMESPACE = 'media-runninghub'
  * and tearing down the tool list.
  */
 export const Config = Schema.object({
-  surface: Schema.union(['jobs', 'sync']).default('sync')
-    .description('注册哪一套工具：sync 为同步图片生成，jobs 为工作流任务池。切换会重载插件。'),
+  surface: Schema.union(['jobs', 'sync']).default('jobs')
+    .description('注册哪一套工具：jobs 为工作流任务池，sync 为同步图片生成。切换会重载插件。'),
   channel: Schema.union(['lowprice', 'official']).default('lowprice')
     .description('Nano Banana 2 渠道：lowprice 低价渠道，official 官方稳定版。'),
   syncSite: Schema.union(['cn', 'intl']).default('cn').volatile()
     .description('sync Key 所属站点：cn 为中国站，intl 为国际站。保存 Key 时按余额币种自动判定。'),
   jobsSite: Schema.union(['cn', 'intl']).default('cn').volatile()
     .description('jobs Key 所属站点：cn 为中国站，intl 为国际站。保存 Key 时按余额币种自动判定。'),
+  concurrency: Schema.number().step(1).min(1).max(20).default(2)
+    .description('任务池的全局并发上限：同时在飞的 RunningHub 任务数。'),
+  pollIntervalSeconds: Schema.number().step(1).min(5).max(600).default(30)
+    .description('任务池的轮询节奏（秒）。'),
 })
 
 const REQUEST_TIMEOUT_MS = 15000
@@ -331,9 +338,15 @@ export function apply(ctx) {
   registerController(ctx)
 
   const surface = ctx.fiber.config?.surface === 'sync' ? 'sync' : 'jobs'
+  const live = ctx.fiber.config ?? {}
   if (surface === 'sync') {
     registerRunningHubSync(ctx)
+  } else {
+    setPoolConfig({
+      concurrency: typeof live.concurrency === 'number' ? live.concurrency : 2,
+      pollIntervalSeconds: typeof live.pollIntervalSeconds === 'number' ? live.pollIntervalSeconds : 30,
+    })
+    registerWorkflowTools(ctx)
   }
-  // `jobs` surface is implemented by the workflow task pool; until it ships this
-  // surface registers no tools and keeps only the configuration surfaces.
+  registerWorkflowSkill(ctx)
 }
