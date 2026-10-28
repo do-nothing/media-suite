@@ -1,0 +1,9 @@
+# media-suite mounts only its own row. The provider packages are separate
+# bundles with their own patches: the plugin manager installs them alongside this
+# suite, and their bundle patches insert their rows. Re-inserting the same ids
+# here would collide with those patches, so this file deliberately does not.
+- insert:
+    - id: media-suite
+      name: media-suite
+      config:
+        outputRoot: ''

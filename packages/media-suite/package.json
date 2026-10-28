@@ -1,0 +1,41 @@
+{
+  "name": "media-suite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "媒体插件家族：一次安装 Qwen 与 RunningHub 媒体能力，并提供跨 provider 的全局设置。",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dependencies": {
+    "media-qwen": "file:../media-qwen",
+    "media-runninghub": "file:../media-runninghub"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "*"
+  }
+}
