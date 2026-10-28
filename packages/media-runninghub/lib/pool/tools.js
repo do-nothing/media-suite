@@ -7,7 +7,7 @@
  * owning session.
  */
 
-import { relative, resolve } from 'node:path'
+import { resolve } from 'node:path'
 
 import * as client from './client.js'
 import { poolConfig } from './config.js'
@@ -15,6 +15,10 @@ import * as store from './store.js'
 import { buildPayload, getTaskType, loadTaskTypes } from './types.js'
 import { classifyFileValue, uploadFile } from './upload.js'
 import { startWatcher } from './watcher.js'
+
+// The single global watcher's identity, or null when the pool has drained.
+// Whatever session started the watcher owns it; later submitters reuse it.
+let activeWatcher = null
 
 /**
  * Register the workflow tools for the `jobs` surface.
