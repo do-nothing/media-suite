@@ -104,7 +104,7 @@ async function downloadOutputs(task, results) {
  *
  * @returns the registry-issued job id, or undefined when ctx.jobs is absent.
  */
-export function startWatcher(ctx, site, cfg, ownerSession) {
+export function startWatcher(ctx, site, cfg, agent) {
   let cancelled = false
   let wakeSleep
 
@@ -153,7 +153,7 @@ export function startWatcher(ctx, site, cfg, ownerSession) {
   job = jobs.start({
     kind: 'runninghub-pool',
     label: 'RunningHub 任务池 watcher',
-    owner: ownerSession,
+    owner: agent,
     run(handle) {
       job = { ...job, handle }
       return hooks

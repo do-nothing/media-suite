@@ -142,11 +142,11 @@ function createSubmitTool(ctx) {
         return { batchId: 0, taskIds: [], watcher: 'none', errors }
       }
 
-      const { ids, batchId } = await store.enqueue(resolved, exec.agent?.session)
+      const { ids, batchId } = await store.enqueue(resolved, exec.agent?.id)
 
       let watcherAction = 'reused'
       if (activeWatcher === null) {
-        startWatcherJob(ctx, site, exec.agent?.session)
+        startWatcherJob(ctx, site, exec.agent)
         watcherAction = 'started'
       }
 
@@ -256,17 +256,18 @@ function createStatusTool() {
   }
 }
 
-/** Start the single global watcher owned by the given session. */
-function startWatcherJob(ctx, site, ownerSession) {
+/** Start the single global watcher owned by the given agent. */
+function startWatcherJob(ctx, site, agent) {
   if (activeWatcher !== null) return
-  const jobId = startWatcher(ctx, site, poolConfig, ownerSession)
+  const jobId = startWatcher(ctx, site, poolConfig, agent)
   if (jobId === undefined) return
-  activeWatcher = { jobId, owner: ownerSession }
+  const ownerId = agent?.id
+  activeWatcher = { jobId, ownerId }
   // The watcher settles via ctx.jobs when the pool drains, which appends
   // `job/settled` to the owning session (the wake). Release the singleton so
   // the next batch can start a fresh watcher.
   const jobs = ctx.get('jobs')
-  jobs?.events.subscribe({ owner: ownerSession }, (event) => {
+  jobs?.events.subscribe({ owner: ownerId }, (event) => {
     if (event.type === 'settled' && event.job.id === jobId) activeWatcher = null
   })
 }
