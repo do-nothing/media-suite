@@ -1,0 +1,600 @@
+/**
+ * Client half of the media-runninghub bundle: one Settings page with two
+ * independent key cards and two independent account panels.
+ *
+ * The page never owns the secret values. Reading goes through
+ * `ctx.remote.credentials.describe`, which returns presence/source/writability
+ * only, and writing goes through `ctx.remote.credentials.set` / `.unset` — the
+ * built-in Host controller over `$DSH_HOME/.credentials.yaml`. No value is
+ * echoed back, kept in page state, or cached anywhere else.
+ *
+ * The two keys are deliberately separate: RunningHub's model API only accepts an
+ * enterprise-shared key, while its workflow API also accepts a consumer-member
+ * key. They may hold the same value; the page never compares them.
+ */
+window.__ModuleLoader__.load({
+  id: 'media-runninghub',
+  factory(require) {
+    const module = { exports: {} }
+    const exports = module.exports
+
+    const React = require('react')
+    const h = React.createElement
+
+    const NS = 'mediaRunningHub'
+
+    /** The two keys this page owns. */
+    const KEYS = [
+      {
+        ref: 'RUNNINGHUB_SHARED_API_KEY',
+        provider: '企业级-共享',
+        purpose: '模型 API / 同步任务',
+        status: 'sharedStatus',
+      },
+      {
+        ref: 'RUNNINGHUB_MEMBER_API_KEY',
+        provider: '消费级-会员',
+        purpose: '工作流 API / 任务池',
+        status: 'memberStatus',
+      },
+    ]
+
+    /**
+     * The Host methods this page calls. The Host registers
+     * `mediaRunningHubController` with a `typertRemote` binding; this
+     * contribution installs the matching `ctx.remote.mediaRunningHub` namespace.
+     * Only method names and empty parameter lists cross the wire.
+     */
+    const REMOTE_CONTRIBUTION = {
+      package: 'media-runninghub',
+      descriptors: [
+        {
+          id: 'media-runninghub#mediaRunningHub/sharedStatus',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'sharedStatus',
+          invocation: { kind: 'direct' },
+          parameters: [],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/sharedStatus:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
+        {
+          id: 'media-runninghub#mediaRunningHub/memberStatus',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'memberStatus',
+          invocation: { kind: 'direct' },
+          parameters: [],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/memberStatus:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
+      ],
+    }
+
+    const DICTS = {
+      zh: {
+        sectionLabel: 'RunningHub 媒体',
+        title: 'RunningHub 媒体',
+        intro: '配置 RunningHub 的两类 API Key。企业级-共享用于模型 API（同步任务），消费级-会员用于工作流 API（任务池）。两者可以相同。',
+        loading: '正在读取密钥状态…',
+        configured: '已配置',
+        configuredStored: '已配置 · 凭据库',
+        configuredEnv: '已配置 · 环境变量',
+        configuredDotenv: '已配置 · .env',
+        unconfigured: '未配置',
+        save: '保存',
+        saving: '保存中…',
+        clear: '清除',
+        clearing: '清除中…',
+        saved: '已保存',
+        cleared: '已清除',
+        inputPlaceholder: '粘贴 API Key',
+        replacePlaceholder: '已配置，输入新值可替换',
+        readonlyNote: '当前凭据提供方不允许写入；请在 ~/.dsh/.credentials.yaml 中手动维护。',
+        emptyInput: '请输入 API Key 后再保存。',
+        loadFailed: '读取密钥状态失败：{message}',
+        saveFailed: '保存失败：{message}',
+        clearFailed: '清除失败：{message}',
+        purpose: '用途：{purpose}',
+        acctTitle: '账户状态',
+        acctRefresh: '刷新',
+        acctRefreshing: '刷新中…',
+        acctRetry: '重试',
+        acctLoading: '正在查询 RunningHub 账户…',
+        acctUnavailable: '账户状态服务不可用，请重启 Harness 后重试。',
+        acctNoKey: '保存该 Key 后，这里会显示账户状态和余额。',
+        acctReady: '账户就绪',
+        acctNoBalance: '余额不足',
+        acctInvalidKey: 'API Key 无效',
+        acctUnreachable: '无法连接 RunningHub',
+        acctTimeout: '查询超时',
+        acctHttpError: 'RunningHub 返回错误',
+        acctError: '查询失败',
+        acctUnknown: '未知状态',
+        acctBalance: '余额',
+        acctTasks: '{count} 个任务运行中',
+        acctCoins: '{count} RH 币',
+        acctApiType: 'API 类型',
+        acctCheckedAt: '检查时间 {time}',
+        acctInvalidDetail: 'RunningHub 拒绝了该 Key：{message}',
+        acctNoBalanceHint: '余额为零，请充值后再使用。',
+        acctRequestFailed: '查询账户状态失败：{message}',
+      },
+      en: {
+        sectionLabel: 'RunningHub Media',
+        title: 'RunningHub Media',
+        intro: 'Configure the two RunningHub key types. Enterprise-shared drives the model API (synchronous tasks); consumer-member drives the workflow API (task pool). They may hold the same value.',
+        loading: 'Reading key status…',
+        configured: 'Configured',
+        configuredStored: 'Configured · store',
+        configuredEnv: 'Configured · environment',
+        configuredDotenv: 'Configured · .env',
+        unconfigured: 'Not configured',
+        save: 'Save',
+        saving: 'Saving…',
+        clear: 'Clear',
+        clearing: 'Clearing…',
+        saved: 'Saved',
+        cleared: 'Cleared',
+        inputPlaceholder: 'Paste the API key',
+        replacePlaceholder: 'Configured — enter a new value to replace it',
+        readonlyNote: 'The active credential provider is read-only; edit ~/.dsh/.credentials.yaml manually.',
+        emptyInput: 'Enter an API key before saving.',
+        loadFailed: 'Could not read key status: {message}',
+        saveFailed: 'Save failed: {message}',
+        clearFailed: 'Clear failed: {message}',
+        purpose: 'Used for: {purpose}',
+        acctTitle: 'Account',
+        acctRefresh: 'Refresh',
+        acctRefreshing: 'Refreshing…',
+        acctRetry: 'Retry',
+        acctLoading: 'Checking the RunningHub account…',
+        acctUnavailable: 'Account status is unavailable. Restart Harness and try again.',
+        acctNoKey: 'Save this key to see account status and balance here.',
+        acctReady: 'Account ready',
+        acctNoBalance: 'No balance',
+        acctInvalidKey: 'Invalid API key',
+        acctUnreachable: 'Cannot reach RunningHub',
+        acctTimeout: 'Request timed out',
+        acctHttpError: 'RunningHub returned an error',
+        acctError: 'Status check failed',
+        acctUnknown: 'Unknown status',
+        acctBalance: 'Balance',
+        acctTasks: '{count} running',
+        acctCoins: '{count} RH coins',
+        acctApiType: 'API type',
+        acctCheckedAt: 'Checked {time}',
+        acctInvalidDetail: 'RunningHub rejected this key: {message}',
+        acctNoBalanceHint: 'The wallet balance is zero; recharge before using the API.',
+        acctRequestFailed: 'Could not check account status: {message}',
+      },
+    }
+
+    const CSS = `
+.media-rh-page { display: flex; flex-direction: column; gap: 14px; color: var(--dsw-alias-label-primary); }
+.media-rh-page h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
+.media-rh-intro { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
+.media-rh-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--dsw-alias-bg-layer-1); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 12px; }
+.media-rh-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.media-rh-provider { font-size: 14px; line-height: 22px; font-weight: 600; }
+.media-rh-purpose { margin: 2px 0 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.media-rh-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.media-rh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); }
+.media-rh-status.is-on .media-rh-dot { background: var(--dsw-alias-state-success-primary); }
+.media-rh-input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 10px; font-size: 13px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base); border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 8px; outline: none; }
+.media-rh-input:focus { border-color: var(--dsw-alias-brand-primary); }
+.media-rh-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.media-rh-input::placeholder { color: var(--dsw-alias-label-secondary); }
+.media-rh-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.media-rh-btn { height: 28px; padding: 0 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-primary); background: transparent; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 8px; cursor: pointer; }
+.media-rh-btn:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2); }
+.media-rh-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.media-rh-btn.is-primary { color: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); }
+.media-rh-btn.is-danger { color: var(--dsw-alias-state-error-primary); border-color: transparent; }
+.media-rh-msg { font-size: 12px; line-height: 18px; }
+.media-rh-msg.is-ok { color: var(--dsw-alias-state-success-primary); }
+.media-rh-msg.is-error { color: var(--dsw-alias-state-error-primary); }
+.media-rh-error { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-state-error-primary); }
+.media-rh-muted { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.media-rh-account { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--dsw-alias-bg-layer-2); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
+.media-rh-account-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.media-rh-account-title { font-size: 12px; line-height: 18px; font-weight: 600; letter-spacing: 0.04em; color: var(--dsw-alias-label-secondary); text-transform: uppercase; }
+.media-rh-account-body { display: flex; flex-direction: column; gap: 6px; }
+.media-rh-account-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.media-rh-account-status { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; line-height: 22px; font-weight: 600; }
+.media-rh-account-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dsw-alias-state-success-primary); }
+.media-rh-account-dot.is-warn { background: var(--dsw-alias-state-warn-primary); }
+.media-rh-account-dot.is-error { background: var(--dsw-alias-state-error-primary); }
+.media-rh-account-dot.is-idle { background: var(--dsw-alias-state-idle-primary); }
+.media-rh-account-balance { font-size: 20px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.media-rh-account-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.media-rh-account-error { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-state-error-primary); }
+`
+
+    /** Render an error thrown or rejected by a Remote call into one line. */
+    function messageOf(error) {
+      if (error && typeof error.message === 'string' && error.message.length > 0) return error.message
+      return String(error)
+    }
+
+    /**
+     * The Remote call envelope is `{ ok, value }` / `{ ok: false, error }`;
+     * turn a refusal into a thrown error so the page's catch path reports the
+     * provider's own message.
+     */
+    function unwrap(response, fallback = 'request was refused') {
+      if (response && response.ok === true) return response.value
+      const message = response && response.error && response.error.message
+      throw new Error(typeof message === 'string' ? message : fallback)
+    }
+
+    /** Re-render the page when the active locale changes. */
+    function useLocaleRevision(locale) {
+      const [, setRevision] = React.useState(0)
+      React.useEffect(() => {
+        if (locale === undefined || typeof locale.subscribe !== 'function') return undefined
+        return locale.subscribe(() => setRevision(revision => revision + 1))
+      }, [locale])
+    }
+
+    /** A status that names the supplying layer, so ambient keys are distinct. */
+    function statusText(t, info) {
+      if (info === undefined || info.configured !== true) return t('unconfigured')
+      switch (info.source) {
+        case 'file': return t('configuredStored')
+        case 'env': return t('configuredEnv')
+        case 'project-env':
+        case 'user-env': return t('configuredDotenv')
+        default: return t('configured')
+      }
+    }
+
+    /** A balance reading with its currency symbol. */
+    function formatMoney(value, currency) {
+      const amount = Number.parseFloat(value)
+      const text = Number.isFinite(amount) ? amount.toFixed(2) : String(value)
+      if (currency === 'USD') return '$' + text
+      if (currency === 'CNY' || currency === 'RMB') return '¥' + text
+      return (currency ? currency + ' ' : '') + text
+    }
+
+    /** A thousands-separated count. */
+    function formatCount(value) {
+      const number = Number.parseFloat(value)
+      return Number.isFinite(number) ? number.toLocaleString() : String(value)
+    }
+
+    /** Dot tone for one account status. */
+    function accountTone(status) {
+      if (status === 'ready') return 'ok'
+      if (status === 'no_balance') return 'warn'
+      if (status === 'no_key') return 'idle'
+      return 'error'
+    }
+
+    /** One account panel, bound to its own key. */
+    function AccountPanel({ t, status, loading, error, onRefresh }) {
+      const tone = status === null ? 'idle' : accountTone(status.status)
+      const labels = {
+        ready: t('acctReady'),
+        no_balance: t('acctNoBalance'),
+        no_key: t('acctNoKey'),
+        invalid_key: t('acctInvalidKey'),
+        unreachable: t('acctUnreachable'),
+        timeout: t('acctTimeout'),
+        http_error: t('acctHttpError'),
+        error: t('acctError'),
+      }
+      const label = status === null ? t('acctUnknown') : (labels[status.status] ?? t('acctUnknown'))
+      const detail = status !== null && typeof status.message === 'string' && status.message.length > 0
+        ? status.message
+        : null
+      const money = status !== null && typeof status.balance === 'string'
+        ? formatMoney(status.balance, status.currency)
+        : null
+      const meta = []
+      if (status !== null && typeof status.coins === 'string') {
+        meta.push(t('acctCoins', { count: formatCount(status.coins) }))
+      }
+      if (status !== null && typeof status.runningTasks === 'string') {
+        meta.push(t('acctTasks', { count: formatCount(status.runningTasks) }))
+      }
+      if (status !== null && typeof status.apiType === 'string' && status.apiType.length > 0) {
+        meta.push(t('acctApiType') + ' ' + status.apiType)
+      }
+      if (status !== null && typeof status.checkedAt === 'string') {
+        const date = new Date(status.checkedAt)
+        if (!Number.isNaN(date.getTime())) meta.push(t('acctCheckedAt', { time: date.toLocaleTimeString() }))
+      }
+      const showGenericDetail = detail !== null
+        && status !== null
+        && status.status !== 'ready'
+        && status.status !== 'no_balance'
+        && status.status !== 'invalid_key'
+        && status.status !== 'unreachable'
+        && status.status !== 'timeout'
+      const canRetry = status !== null
+        && status.status !== 'ready'
+        && status.status !== 'no_balance'
+        && status.status !== 'no_key'
+
+      return h('div', { className: 'media-rh-account', 'aria-busy': loading ? 'true' : undefined },
+        h('div', { className: 'media-rh-account-head' },
+          h('span', { className: 'media-rh-account-title' }, t('acctTitle')),
+          h('button', {
+            type: 'button',
+            className: 'media-rh-btn',
+            disabled: loading,
+            onClick: onRefresh,
+          }, loading ? t('acctRefreshing') : (canRetry ? t('acctRetry') : t('acctRefresh')))
+        ),
+        error !== null
+          ? h('p', { className: 'media-rh-account-error', role: 'alert' }, t('acctRequestFailed', { message: error }))
+          : null,
+        status === null
+          ? (error === null
+              ? h('p', { className: 'media-rh-muted' }, loading ? t('acctLoading') : t('acctNoKey'))
+              : null)
+          : status.status === 'no_key'
+            ? h('p', { className: 'media-rh-muted' }, t('acctNoKey'))
+            : h('div', { className: 'media-rh-account-body' },
+                h('div', { className: 'media-rh-account-main' },
+                  h('span', { className: 'media-rh-account-status' },
+                    h('span', {
+                      className: 'media-rh-account-dot' + (tone === 'ok' ? '' : ' is-' + tone),
+                      'aria-hidden': 'true',
+                    }),
+                    label
+                  ),
+                  money !== null
+                    ? h('span', { className: 'media-rh-account-balance', title: t('acctBalance') }, money)
+                    : null
+                ),
+                meta.length > 0
+                  ? h('div', { className: 'media-rh-account-meta' },
+                      meta.map((text, index) => h('span', { key: String(index) }, text)))
+                  : null,
+                status.status === 'invalid_key' && detail !== null
+                  ? h('p', { className: 'media-rh-account-error' }, t('acctInvalidDetail', { message: detail }))
+                  : null,
+                status.status === 'no_balance'
+                  ? h('p', { className: 'media-rh-muted' }, t('acctNoBalanceHint'))
+                  : null,
+                showGenericDetail
+                  ? h('p', { className: 'media-rh-account-error' }, detail)
+                  : null
+              )
+      )
+    }
+
+    /** One key card with its own account panel. */
+    function KeyCard({ ctx, t, entry, info, load, onChanged, status, loading, error, onRefresh }) {
+      const ref = entry.ref
+      const [draft, setDraft] = React.useState('')
+      const [busy, setBusy] = React.useState(null)
+      const [message, setMessage] = React.useState(null)
+      const configured = info !== undefined && info.configured === true
+      const managed = configured && info.source === 'file'
+      const writable = info === undefined || info.writable !== false
+      const disabled = busy !== null || !writable
+
+      const report = (kind, text) => setMessage({ kind, text })
+
+      const save = () => {
+        const value = draft.trim()
+        if (value.length === 0) {
+          report('error', t('emptyInput'))
+          return
+        }
+        setBusy('saving')
+        setMessage(null)
+        ctx.remote.credentials.set(ref, value)
+          .then((response) => {
+            unwrap(response)
+            setDraft('')
+            report('ok', t('saved'))
+            return load().then(() => {
+              if (typeof onChanged === 'function') onChanged()
+            })
+          })
+          .catch((err) => report('error', t('saveFailed', { message: messageOf(err) })))
+          .then(() => setBusy(null))
+      }
+
+      const clear = () => {
+        setBusy('clearing')
+        setMessage(null)
+        ctx.remote.credentials.unset(ref)
+          .then((response) => {
+            unwrap(response)
+            setDraft('')
+            report('ok', t('cleared'))
+            return load().then(() => {
+              if (typeof onChanged === 'function') onChanged()
+            })
+          })
+          .catch((err) => report('error', t('clearFailed', { message: messageOf(err) })))
+          .then(() => setBusy(null))
+      }
+
+      const onKeyDown = (event) => {
+        if (event.key === 'Enter' && !disabled) save()
+      }
+
+      return h('div', { className: 'media-rh-card' },
+        h('div', { className: 'media-rh-card-head' },
+          h('div', null,
+            h('div', { className: 'media-rh-provider' }, entry.provider),
+            h('p', { className: 'media-rh-purpose' }, t('purpose', { purpose: entry.purpose }))
+          ),
+          h('span', { className: 'media-rh-status' + (configured ? ' is-on' : '') },
+            h('span', { className: 'media-rh-dot', 'aria-hidden': 'true' }),
+            statusText(t, info)
+          )
+        ),
+        h('input', {
+          className: 'media-rh-input',
+          type: 'password',
+          autoComplete: 'off',
+          spellCheck: false,
+          value: draft,
+          placeholder: configured ? t('replacePlaceholder') : t('inputPlaceholder'),
+          'aria-label': entry.provider + ' ' + ref,
+          disabled,
+          onChange: (event) => setDraft(event.target.value),
+          onKeyDown,
+        }),
+        h('div', { className: 'media-rh-actions' },
+          h('button', {
+            type: 'button',
+            className: 'media-rh-btn is-primary',
+            disabled: disabled || draft.trim().length === 0,
+            onClick: save,
+          }, busy === 'saving' ? t('saving') : t('save')),
+          configured && managed
+            ? h('button', {
+                type: 'button',
+                className: 'media-rh-btn is-danger',
+                disabled,
+                onClick: clear,
+              }, busy === 'clearing' ? t('clearing') : t('clear'))
+            : null,
+          message !== null
+            ? h('span', {
+                className: 'media-rh-msg ' + (message.kind === 'ok' ? 'is-ok' : 'is-error'),
+                role: message.kind === 'ok' ? 'status' : 'alert',
+              }, message.text)
+            : null
+        ),
+        writable ? null : h('p', { className: 'media-rh-muted' }, t('readonlyNote')),
+        h(AccountPanel, { t, status, loading, error, onRefresh })
+      )
+    }
+
+    /** The Settings page registered under `settings.section`. */
+    function MediaRunningHubPage({ ctx }) {
+      const locale = ctx.get('locale')
+      useLocaleRevision(locale)
+      const t = ctx.locale.bind(NS)
+
+      const [infos, setInfos] = React.useState(null)
+      const [loadError, setLoadError] = React.useState(null)
+
+      const [shared, setShared] = React.useState({ status: null, loading: false, error: null })
+      const [member, setMember] = React.useState({ status: null, loading: false, error: null })
+      const sharedSeq = React.useRef(0)
+      const memberSeq = React.useRef(0)
+
+      const load = React.useCallback(() => {
+        return ctx.remote.credentials.describe(KEYS.map(entry => entry.ref))
+          .then((response) => {
+            setInfos(unwrap(response))
+            setLoadError(null)
+          })
+          .catch((err) => setLoadError(messageOf(err)))
+      }, [])
+
+      const refreshOne = React.useCallback((which) => {
+        const remote = ctx.get('remote.mediaRunningHub')
+        const setter = which === 'sharedStatus' ? setShared : setMember
+        const seqRef = which === 'sharedStatus' ? sharedSeq : memberSeq
+        if (remote === undefined || typeof remote[which] !== 'function') {
+          setter({ status: null, loading: false, error: ctx.locale.bind(NS)('acctUnavailable') })
+          return
+        }
+        const current = ++seqRef.current
+        setter(prev => ({ ...prev, loading: true, error: null }))
+        remote[which]()
+          .then((response) => {
+            if (current !== seqRef.current) return
+            setter({ status: unwrap(response, 'account status request was refused'), loading: false, error: null })
+          })
+          .catch((err) => {
+            if (current !== seqRef.current) return
+            setter({ status: null, loading: false, error: messageOf(err) })
+          })
+      }, [])
+
+      const refreshShared = React.useCallback(() => refreshOne('sharedStatus'), [refreshOne])
+      const refreshMember = React.useCallback(() => refreshOne('memberStatus'), [refreshOne])
+
+      React.useEffect(() => {
+        load()
+        refreshShared()
+        refreshMember()
+      }, [load, refreshShared, refreshMember])
+
+      const panelFor = (entry) => {
+        if (entry.status === 'sharedStatus') {
+          return { status: shared.status, loading: shared.loading, error: shared.error, onRefresh: refreshShared }
+        }
+        return { status: member.status, loading: member.loading, error: member.error, onRefresh: refreshMember }
+      }
+
+      return h('section', { className: 'media-rh-page' },
+        h('style', null, CSS),
+        h('h2', null, t('title')),
+        h('p', { className: 'media-rh-intro' }, t('intro')),
+        loadError !== null
+          ? h('p', { className: 'media-rh-error', role: 'alert' }, t('loadFailed', { message: loadError }))
+          : null,
+        infos === null
+          ? h('p', { className: 'media-rh-muted' }, t('loading'))
+          : KEYS.map(entry => {
+              const panel = panelFor(entry)
+              return h(KeyCard, {
+                key: entry.ref,
+                ctx,
+                t,
+                entry,
+                info: infos[entry.ref],
+                load,
+                onChanged: panel.onRefresh,
+                status: panel.status,
+                loading: panel.loading,
+                error: panel.error,
+                onRefresh: panel.onRefresh,
+              })
+            })
+      )
+    }
+
+    exports.inject = ['slots', 'remote', 'remote.credentials', 'locale']
+
+    exports.apply = async function apply(ctx) {
+      if (typeof ctx.remote.$mount === 'function') {
+        try {
+          const unmount = await ctx.remote.$mount(REMOTE_CONTRIBUTION)
+          ctx.effect(() => () => {
+            if (typeof unmount === 'function') void unmount()
+          }, 'media-runninghub: Remote namespace')
+        } catch (error) {
+          // Keep the key-config page usable; its account panels report the
+          // missing namespace instead of failing the whole section.
+          if (ctx.logger !== undefined) ctx.logger.warn('media-runninghub: Remote namespace mount failed: %o', error)
+        }
+      }
+
+      ctx.effect(() => ctx.locale.register(NS, DICTS), 'media-runninghub: locale')
+
+      const t = ctx.locale.bind(NS)
+      ctx.slots.inject('settings.section', () => ctx.slots.register({
+        name: 'settings.section',
+        id: 'media-runninghub',
+        order: 41,
+        label: () => t('sectionLabel'),
+        locale: NS,
+      }, function MediaRunningHubSection() {
+        return h(MediaRunningHubPage, { ctx })
+      }))
+    }
+
+    return module.exports
+  },
+})

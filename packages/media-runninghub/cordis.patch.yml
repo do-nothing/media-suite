@@ -1,0 +1,6 @@
+- insert:
+    - id: media-runninghub
+      name: media-runninghub
+      config:
+        surface: sync
+        channel: lowprice
