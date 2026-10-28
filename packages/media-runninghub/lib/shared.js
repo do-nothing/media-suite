@@ -51,24 +51,11 @@ export function localPathOf(ctx, exec, ref) {
 /**
  * Root directory for generated files.
  *
- * `media-suite` may publish a `mediaSettings` service with `outputRoot`; without
- * it the Session directory's `output` folder is used.
+ * The location is fixed: `<session directory>/output`. Callers that want a
+ * specific destination pass an explicit `output` path to the tool instead of
+ * reconfiguring the plugin.
  */
 export function outputRoot(ctx, exec) {
-  const settings = ctx.get('mediaSettings')
-  if (settings !== undefined) {
-    try {
-      const configured = typeof settings.outputRoot === 'function'
-        ? settings.outputRoot()
-        : settings.outputRoot
-      if (typeof configured === 'string' && configured.trim().length > 0) {
-        const value = configured.trim()
-        return isAbsolute(value) ? value : resolve(sessionCwd(ctx, exec), value)
-      }
-    } catch {
-      // Fall through to the default.
-    }
-  }
   return resolve(sessionCwd(ctx, exec), 'output')
 }
 
@@ -272,8 +259,12 @@ export async function resolveMedia(ctx, exec, ref, apiKey, signal, inlineLimitBy
   return `data:${mime};base64,${bytes.toString('base64')}`
 }
 
-/** Download one result URL below the configured output root. */
-export async function downloadResult(ctx, exec, url, sections, fileName, signal) {
+/**
+ * Download one result URL below the configured output root.
+ *
+ * @param destination - explicit destination directory, when the caller asked for one.
+ */
+export async function downloadResult(ctx, exec, url, sections, fileName, signal, destination) {
   let response
   try {
     response = await fetch(url, { signal })
@@ -286,12 +277,9 @@ export async function downloadResult(ctx, exec, url, sections, fileName, signal)
   }
 
   const bytes = Buffer.from(await response.arrayBuffer())
-  const directory = resolve(
-    outputRoot(ctx, exec),
-    'media',
-    'runninghub',
-    ...sections.map((section) => safeSegment(section)),
-  )
+  const directory = destination !== undefined
+    ? resolve(sessionCwd(ctx, exec), destination)
+    : resolve(outputRoot(ctx, exec), 'media', 'runninghub', ...sections.map((section) => safeSegment(section)))
   await mkdir(directory, { recursive: true })
   const filePath = resolve(directory, safeSegment(fileName))
   await writeFile(filePath, bytes)

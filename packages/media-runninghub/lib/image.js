@@ -190,6 +190,10 @@ function createRunningHubImageTool(ctx, config) {
           enum: RESOLUTIONS,
           description: '分辨率，默认 2k。',
         },
+        output: {
+          type: 'string',
+          description: '可选的输出目录；相对路径按当前工作目录解析。默认写到 <当前目录>/output/media/runninghub/image/。',
+        },
       },
       required: ['prompt'],
       additionalProperties: false,
@@ -261,9 +265,12 @@ function createRunningHubImageTool(ctx, config) {
 
       const format = result?.outputType ?? extensionFor('image')
       const fileName = `${stamp()}-${mode}-${textHash(input.prompt)}.${format}`
+      const destination = typeof args?.output === 'string' && args.output.trim().length > 0
+        ? args.output.trim()
+        : undefined
       const { filePath, bytes } = await withDeadline(
         exec,
-        (signal) => downloadResult(ctx, exec, url, ['image'], fileName, signal),
+        (signal) => downloadResult(ctx, exec, url, ['image'], fileName, signal, destination),
         REQUEST_TIMEOUT_MS,
       )
 

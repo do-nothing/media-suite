@@ -34,8 +34,5 @@
         "@deepseek-ai/dsh-client-locale"
       ]
     }
-  },
-  "peerDependencies": {
-    "@deepseek-ai/schemastery": "*"
   }
 }

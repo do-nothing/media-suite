@@ -2,8 +2,9 @@
 # bundles with their own patches: the plugin manager installs them alongside this
 # suite, and their bundle patches insert their rows. Re-inserting the same ids
 # here would collide with those patches, so this file deliberately does not.
+#
+# The suite has no config: where files land is a per-call choice, not a profile
+# setting.
 - insert:
     - id: media-suite
       name: media-suite
-      config:
-        outputRoot: ''

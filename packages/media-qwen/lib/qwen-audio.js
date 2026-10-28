@@ -113,8 +113,9 @@ async function postSpeech(body, apiKey, signal) {
  * @param url - provider download URL.
  * @param sections - path segments below `<root>/media/qwen`.
  * @param fileName - output file name.
+ * @param destination - explicit destination directory, when the caller asked for one.
  */
-async function downloadAudio(ctx, exec, url, sections, fileName, signal) {
+async function downloadAudio(ctx, exec, url, sections, fileName, signal, destination) {
   let response
   try {
     response = await fetch(url, { signal })
@@ -127,12 +128,9 @@ async function downloadAudio(ctx, exec, url, sections, fileName, signal) {
   }
 
   const bytes = Buffer.from(await response.arrayBuffer())
-  const directory = resolve(
-    outputRoot(ctx, exec),
-    'media',
-    'qwen',
-    ...sections.map((section) => safeSegment(section)),
-  )
+  const directory = destination !== undefined
+    ? resolve(sessionCwd(ctx, exec), destination)
+    : resolve(outputRoot(ctx, exec), 'media', 'qwen', ...sections.map((section) => safeSegment(section)))
   await mkdir(directory, { recursive: true })
   const filePath = resolve(directory, safeSegment(fileName))
   await writeFile(filePath, bytes)
@@ -259,6 +257,10 @@ function createQwenTtsTool(ctx) {
           enum: TTS_SAMPLE_RATES,
           description: '采样率，默认 22050。',
         },
+        output: {
+          type: 'string',
+          description: '可选的输出目录；相对路径按当前工作目录解析。默认写到 <当前目录>/output/media/qwen/TTS-Plus/。',
+        },
       },
       required: ['text', 'voice'],
       additionalProperties: false,
@@ -290,9 +292,12 @@ function createQwenTtsTool(ctx) {
         REQUEST_TIMEOUT_MS,
       )
       const fileName = `${stamp()}-tts-${textHash(text)}.${extensionOf(format)}`
+      const destination = typeof args?.output === 'string' && args.output.trim().length > 0
+        ? args.output.trim()
+        : undefined
       const { filePath, bytes } = await withDeadline(
         exec,
-        (signal) => downloadAudio(ctx, exec, url, ['TTS-Plus'], fileName, signal),
+        (signal) => downloadAudio(ctx, exec, url, ['TTS-Plus'], fileName, signal, destination),
         REQUEST_TIMEOUT_MS,
       )
       return resultOf(payload, filePath, bytes, format)
@@ -336,6 +341,10 @@ function createQwenAudioTool(ctx) {
           enum: [1, 2],
           description: '声道数，默认 2。',
         },
+        output: {
+          type: 'string',
+          description: '可选的输出目录；相对路径按当前工作目录解析。默认写到 <当前目录>/output/media/qwen/TTS-Next/。',
+        },
       },
       required: ['text_prompt'],
       additionalProperties: false,
@@ -378,9 +387,12 @@ function createQwenAudioTool(ctx) {
         REQUEST_TIMEOUT_MS,
       )
       const fileName = `${stamp()}-audio-${textHash(textPrompt)}.${extensionOf(format)}`
+      const destination = typeof args?.output === 'string' && args.output.trim().length > 0
+        ? args.output.trim()
+        : undefined
       const { filePath, bytes } = await withDeadline(
         exec,
-        (signal) => downloadAudio(ctx, exec, url, ['TTS-Next'], fileName, signal),
+        (signal) => downloadAudio(ctx, exec, url, ['TTS-Next'], fileName, signal, destination),
         REQUEST_TIMEOUT_MS,
       )
       return resultOf(payload, filePath, bytes, format)

@@ -1,12 +1,12 @@
 # media-suite · 媒体工具
 
-媒体插件家族的一键安装入口，以及跨 provider 的全局设置。
+媒体插件家族的一键安装入口。
 
 ## 它做什么
 
 ```text
 media-suite
-  ├─ 挂载自己的一行（提供 mediaSettings 服务与全局设置页）
+  ├─ 挂载自己的一行
   ├─ 依赖 media-qwen
   └─ 依赖 media-runninghub
 ```
@@ -15,41 +15,31 @@ media-suite
 
 - `media-qwen` 的 `qwen_omni` / `qwen_tts` / `qwen_audio`
 - `media-runninghub` 的 `runninghub_image`
-- 三个设置页：媒体工具（全局）、Qwen 媒体、RunningHub 媒体
+- 两个 provider 各自的设置页
 
 ## 它不做什么
 
 - 不调用任何 provider API
 - 不保存任何 API Key
 - 不注册任何模型工具
+- **没有自己的配置页**：输出位置不是 profile 设置
 
-## 全局设置
+## 输出位置
 
-| 设置 | 默认 | 说明 |
-|---|---|---|
-| `outputRoot` | 空 | 生成文件的根目录；留空表示使用当前会话目录下的 `output` |
-
-provider 写到：
+默认固定为：
 
 ```text
-<outputRoot>/media/qwen/...​
-<outputRoot>/media/runninghub/...​
+<当前工作目录>/output/media/qwen/...​
+<当前工作目录>/output/media/runninghub/...​
 ```
 
-`outputRoot` 是绝对路径就直接用，是相对路径就相对会话目录解析。
+需要写到别处时，**在每次调用里传 `output`**：
 
-## mediaSettings 服务
-
-suite 通过 `ctx.provide('mediaSettings', ...)` 暴露：
-
-```js
-{
-  outputRoot: string,               // 配置值；空字符串表示使用默认
-  resolveRoot(sessionDirectory),    // 把配置值解析成绝对路径
-}
+```json
+{ "prompt": "...",​ "output": "D:/projects/ep01/stills" }
 ```
 
-provider 用 `ctx.get('mediaSettings')` 读取；读不到时各自回退到 `<会话目录>/output`，所以每个 provider 包都能独立安装使用。
+相对路径按当前工作目录解析，目录会自动创建。这样同一个会话里不同任务可以各自落到各自的目录，不需要改插件配置。
 
 ## 挂载方式
 
@@ -64,5 +54,3 @@ provider 是独立的 bundle，各自带 `dsh.bundle.patch`。它们在 suite �
 ```powershell
 plugin_manager install_bundle E:\2026\dsh-plugins\media-suite\packages\media-suite
 ```
-
-卸载 suite 时，provider 包是否一起移除由插件管理器决定；单独卸载某个 provider 不影响 suite 的全局设置页。

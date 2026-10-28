@@ -132,25 +132,11 @@ export async function withDeadline(exec, fn, timeoutMs) {
 /**
  * Root directory for generated files.
  *
- * `media-suite` may publish a `mediaSettings` service with `outputRoot`; without
- * it the Session directory's `output` folder is used, so the package stays
- * usable on its own.
+ * The location is fixed: `<session directory>/output`. Callers that want a
+ * specific destination pass an explicit `output` path to the tool instead of
+ * reconfiguring the plugin.
  */
 export function outputRoot(ctx, exec) {
-  const settings = ctx.get('mediaSettings')
-  if (settings !== undefined) {
-    try {
-      const configured = typeof settings.outputRoot === 'function'
-        ? settings.outputRoot()
-        : settings.outputRoot
-      if (typeof configured === 'string' && configured.trim().length > 0) {
-        const value = configured.trim()
-        return isAbsolute(value) ? value : resolve(sessionCwd(ctx, exec), value)
-      }
-    } catch {
-      // Fall through to the default.
-    }
-  }
   return resolve(sessionCwd(ctx, exec), 'output')
 }
 
