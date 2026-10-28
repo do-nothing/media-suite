@@ -150,6 +150,7 @@ window.__ModuleLoader__.load({
         siteUnknown: '站点未判定',
         siteLabel: '站点',
         siteJudged: '已判定站点：{site}（按余额币种 {currency}）',
+        siteJudging: '正在判定所属站点…',
         siteFailed: '站点判定失败：{message}',
         sitePending: '保存后将按余额币种自动判定所属站点。',
         acctTitle: '账户状态',
@@ -210,6 +211,7 @@ window.__ModuleLoader__.load({
         siteUnknown: 'Site not determined',
         siteLabel: 'Site',
         siteJudged: 'Site determined: {site} (balance currency {currency})',
+        siteJudging: 'Determining the owning site…',
         siteFailed: 'Could not determine the site: {message}',
         sitePending: 'The owning site is determined from the balance currency when the key is saved.',
         acctTitle: 'Account',
@@ -516,6 +518,27 @@ window.__ModuleLoader__.load({
         if (event.key === 'Enter' && !disabled) save()
       }
 
+      /**
+       * Refresh the account and judge the site.
+       *
+       * Refreshing is a read-only action, so it is available on the inactive
+       * card too — which is the only way its key ever gets judged, because the
+       * inactive card has no save button.
+       */
+      const refreshAndJudge = () => {
+        if (typeof onRefresh === 'function') onRefresh()
+        if (typeof judge !== 'function') return
+        setJudged({ kind: 'pending' })
+        Promise.resolve()
+          .then(() => judge(entry))
+          .then((verdict) => {
+            setJudged({ kind: 'ok', site: verdict.site, currency: verdict.currency })
+          })
+          .catch((err) => {
+            setJudged({ kind: 'error', message: messageOf(err) })
+          })
+      }
+
       // The site shown is the one this session judged, falling back to the
       // verdict the Host already stores in the plugin Config.
       const storedSite = status !== null && typeof status === 'object' && typeof status.site === 'string'
@@ -524,10 +547,12 @@ window.__ModuleLoader__.load({
       const siteLine = judged !== null
         ? (judged.kind === 'error'
             ? h('p', { className: 'media-rh-account-error' }, t('siteFailed', { message: judged.message }))
-            : h('p', { className: 'media-rh-muted' }, t('siteJudged', {
-                site: siteLabel(t, judged.site),
-                currency: judged.currency,
-              })))
+            : judged.kind === 'pending'
+              ? h('p', { className: 'media-rh-muted' }, t('siteJudging'))
+              : h('p', { className: 'media-rh-muted' }, t('siteJudged', {
+                  site: siteLabel(t, judged.site),
+                  currency: judged.currency,
+                })))
         : storedSite !== undefined
           ? h('p', { className: 'media-rh-muted' }, t('siteLabel') + '：' + siteLabel(t, storedSite))
           : h('p', { className: 'media-rh-muted' }, t('sitePending'))
@@ -585,7 +610,7 @@ window.__ModuleLoader__.load({
         !writable ? h('p', { className: 'media-rh-muted' }, t('readonlyNote')) : null,
         !active ? h('p', { className: 'media-rh-muted' }, t('inactiveNote', { surface: surfaceName })) : null,
         siteLine,
-        h(AccountPanel, { t, status, loading, error, onRefresh })
+        h(AccountPanel, { t, status, loading, error, onRefresh: refreshAndJudge })
       )
     }
 
