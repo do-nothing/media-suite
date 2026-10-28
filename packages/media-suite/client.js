@@ -109,27 +109,28 @@ window.__ModuleLoader__.load({
       const [loadError, setLoadError] = React.useState(null)
 
       React.useEffect(() => {
-        const settings = ctx.get('settings')
-        if (settings === undefined) {
-          setLoadError(t('loadFailed', { message: 'settings service unavailable' }))
+        const remote = ctx.get('remote.settings')
+        if (remote === undefined || typeof remote.describe !== 'function') {
+          setLoadError(t('loadFailed', { message: 'settings namespace unavailable' }))
           return
         }
         let disposed = false
         Promise.resolve()
-          .then(() => settings.describe())
-          .then((descriptors) => {
+          .then(() => remote.describe())
+          .then((described) => {
             if (disposed) return
-            const entry = Array.isArray(descriptors)
-              ? descriptors.find(item => item?.id === 'media-suite' || item?.namespace === 'media-suite')
-              : undefined
-            if (entry === undefined) {
+            const views = Array.isArray(described?.namespaces)
+              ? described.namespaces
+              : Array.isArray(described) ? described : []
+            const view = views.find(item => item?.namespace === 'media-suite' || item?.id === 'media-suite')
+            if (view === undefined) {
               setDraft('')
               return
             }
-            const value = entry.value ?? entry.values ?? entry.config ?? {}
+            const value = view.value ?? view.values ?? view.config ?? {}
             setDraft(typeof value.outputRoot === 'string' ? value.outputRoot : '')
-            setRevision(entry.revision)
-            if (entry.writable === false) setWritable(false)
+            setRevision(view.revision)
+            if (view.writable === false) setWritable(false)
           })
           .catch((error) => {
             if (!disposed) setLoadError(t('loadFailed', { message: messageOf(error) }))
@@ -138,13 +139,18 @@ window.__ModuleLoader__.load({
       }, [])
 
       const save = () => {
-        const settings = ctx.get('settings')
-        if (settings === undefined || draft === null) return
+        const remote = ctx.get('remote.settings')
+        if (remote === undefined || typeof remote.update !== 'function' || draft === null) return
         setBusy(true)
         setMessage(null)
         Promise.resolve()
-          .then(() => settings.update('media-suite', { outputRoot: draft.trim() }, revision))
-          .then(() => setMessage({ kind: 'ok', text: t('saved') }))
+          .then(() => remote.update('media-suite', { outputRoot: draft.trim() }, revision))
+          .then((view) => {
+            if (view !== null && typeof view === 'object' && typeof view.revision === 'number') {
+              setRevision(view.revision)
+            }
+            setMessage({ kind: 'ok', text: t('saved') })
+          })
           .catch((error) => setMessage({ kind: 'error', text: t('saveFailed', { message: messageOf(error) }) }))
           .then(() => setBusy(false))
       }
@@ -189,7 +195,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    exports.inject = ['slots', 'settings', 'locale']
+    exports.inject = ['slots', 'remote', 'remote.settings', 'locale']
 
     exports.apply = function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, DICTS), 'media-suite: locale')
