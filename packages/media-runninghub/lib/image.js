@@ -64,20 +64,27 @@ function sleep(ms, signal) {
   })
 }
 
-/** Submit one generation task and return its task id. */
+/**
+ * Submit one generation task and return its task id.
+ *
+ * A successful submit answers with a flat task object (`taskId`, `status`,
+ * `errorCode`, `errorMessage`, `results`, ...) and no `code` envelope. Failures
+ * use a `code`/`msg` envelope, so the two shapes are distinguished by the
+ * presence of `taskId` rather than by a status code.
+ */
 async function submit(endpoint, payload, apiKey, signal) {
   const result = await postJson(`${BASE_URL}/${endpoint}`, payload, apiKey, signal)
-  if (!result.ok || result.payload?.code !== 0) {
-    throw providerError(result.payload, apiKey, result.status)
+  const taskId = result.payload?.taskId ?? result.payload?.data?.taskId
+  if (result.ok && (typeof taskId === 'string' || typeof taskId === 'number')) {
+    if (result.payload?.errorCode !== undefined && result.payload.errorCode !== '') {
+      throw providerError(result.payload, apiKey, result.status)
+    }
+    return String(taskId)
   }
-  const taskId = result.payload?.data?.taskId ?? result.payload?.taskId
-  if (typeof taskId !== 'string' || taskId.length === 0) {
-    throw new ToolError('SUBMIT_FAILED', 'RunningHub 响应缺少 taskId。')
-  }
-  return taskId
+  throw providerError(result.payload, apiKey, result.status)
 }
 
-/** Poll one task until it settles; returns the final payload. */
+/** Poll one task until it settles; returns the settled task object. */
 async function poll(taskId, apiKey, signal) {
   const deadline = Date.now() + RESULT_TIMEOUT_MS
   let lastStatus = 'UNKNOWN'
@@ -85,18 +92,16 @@ async function poll(taskId, apiKey, signal) {
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS, signal)
     const result = await postJson(`${BASE_URL}/query`, { taskId }, apiKey, signal)
-    if (!result.ok || result.payload?.code !== 0) {
+    const task = result.payload?.data ?? result.payload
+    if (!result.ok || task === null || typeof task !== 'object') {
       throw providerError(result.payload, apiKey, result.status)
     }
 
-    const data = result.payload?.data ?? {}
-    lastStatus = data.status ?? 'UNKNOWN'
-    if (lastStatus === 'SUCCESS') return data
+    lastStatus = typeof task.status === 'string' ? task.status : 'UNKNOWN'
+    if (lastStatus === 'SUCCESS') return task
     if (lastStatus === 'FAILED') {
-      throw new ToolError(
-        'TASK_FAILED',
-        `RunningHub 任务失败：${data.errorMessage ?? data.errorCode ?? '未知原因'}`,
-      )
+      const detail = task.errorMessage ?? task.failedReason?.errorMessage ?? task.errorCode ?? '未知原因'
+      throw new ToolError('TASK_FAILED', `RunningHub 任务失败：${detail}`)
     }
   }
 

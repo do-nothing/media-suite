@@ -93,16 +93,27 @@ export function scrub(text, secret, maxLength = 300) {
   return value.slice(0, maxLength)
 }
 
-/** One display-safe provider message. */
+/**
+ * One display-safe provider message.
+ *
+ * RunningHub answers both success and failure with a flat task object, so
+ * `errorCode` / `errorMessage` are the fields that matter; the `code` / `msg`
+ * envelope is kept for endpoints that still use it.
+ */
 export function providerMessage(payload, secret, maxLength = 300) {
-  const message = payload?.msg ?? payload?.message ?? payload?.error?.message ?? payload?.code
+  const message = payload?.errorMessage
+    ?? payload?.msg
+    ?? payload?.message
+    ?? payload?.error?.message
+    ?? payload?.code
   if (typeof message === 'string' && message.length > 0) return scrub(message, secret, maxLength)
   return scrub(typeof payload === 'string' ? payload : JSON.stringify(payload ?? {}), secret, maxLength)
 }
 
 /** Build a classified error from one RunningHub failure payload. */
 export function providerError(payload, secret, httpStatus) {
-  const text = `${payload?.code ?? ''} ${providerMessage(payload, secret)}`.toLowerCase()
+  const code = payload?.errorCode ?? payload?.code ?? ''
+  const text = `${code} ${providerMessage(payload, secret)}`.toLowerCase()
   if (/auth|401|403|token|unauthor|鉴权|授权/.test(text)) {
     return new ToolError('AUTH_FAILED', 'RunningHub 拒绝了该 Key。请检查 Key 是否有效、是否属于对应类型。')
   }
@@ -112,7 +123,8 @@ export function providerError(payload, secret, httpStatus) {
   if (/rate limit|too many|频繁|限流|429/.test(text) || httpStatus === 429) {
     return new ToolError('RATE_LIMITED', 'RunningHub 请求过于频繁，请稍后重试。')
   }
-  return new ToolError('PROVIDER_ERROR', `RunningHub 返回错误：${providerMessage(payload, secret)}`)
+  const detail = providerMessage(payload, secret)
+  return new ToolError('PROVIDER_ERROR', `RunningHub 返回错误${code === '' ? '' : `（${code}）`}：${detail}`)
 }
 
 /**
