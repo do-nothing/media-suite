@@ -94,6 +94,12 @@ function now() {
  * @param sessionId - the submitting session (for the wake record).
  * @returns { ids: number[], batchId: number }
  */
+/** Coerce a bind value to a SQLite-safe scalar, or null when absent. */
+function scalar(value) {
+  if (value === null || value === undefined) return null
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' ? value : String(value)
+}
+
 export async function enqueue(jobs, sessionId) {
   const db = await open()
   const row = db.prepare('SELECT MAX(batch_id) AS b FROM tasks').get()
@@ -108,12 +114,13 @@ export async function enqueue(jobs, sessionId) {
                        status, session_id, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)
   `)
+  const sid = scalar(sessionId)
   for (const job of jobs) {
     const info = insert.run(
-      batchId, job.typeId, job.workflowId, job.instanceType,
-      JSON.stringify(job.request), JSON.stringify(job.nodeOverrides), JSON.stringify(job.params),
-      job.outputDir ?? null, job.outputName ?? null, job.outputRoot ?? null,
-      sessionId ?? null, ts, ts,
+      scalar(batchId), scalar(job.typeId), scalar(job.workflowId), scalar(job.instanceType),
+      scalar(JSON.stringify(job.request)), scalar(JSON.stringify(job.nodeOverrides)), scalar(JSON.stringify(job.params)),
+      scalar(job.outputDir), scalar(job.outputName), scalar(job.outputRoot),
+      sid, ts, ts,
     )
     ids.push(Number(info.lastInsertRowid))
   }
