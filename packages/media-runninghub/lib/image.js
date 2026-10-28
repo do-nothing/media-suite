@@ -171,8 +171,8 @@ function validateArgs(args) {
 }
 
 /** The model-facing tool definition. */
-function createRunningHubImageTool(ctx, config) {
-  const channel = config?.channel === 'official' ? 'official' : 'lowprice'
+function createRunningHubImageTool(ctx) {
+  const channel = ctx.fiber.config?.channel === 'official' ? 'official' : 'lowprice'
 
   return {
     name: 'runninghub_image',
@@ -244,9 +244,11 @@ function createRunningHubImageTool(ctx, config) {
       const input = validateArgs(args)
       const apiKey = await apiKeyOf(ctx, SYNC_REF, '同步模式，用于模型 API')
 
-      // The site is a configuration-time verdict, read live so a key swapped
-      // in the settings page takes effect on the next call.
-      const site = siteOf(config, 'syncSite')
+      // The site is a configuration-time verdict, read from the live fiber
+      // config so a key saved in the settings page takes effect on the next
+      // call. A captured config object would keep reporting the value it was
+      // created with.
+      const site = siteOf(ctx.fiber.config, 'syncSite')
       if (site === undefined) {
         throw new ToolError(
           'SITE_UNKNOWN',
@@ -306,9 +308,9 @@ function createRunningHubImageTool(ctx, config) {
 }
 
 /** Register the RunningHub image tool for the `sync` surface. */
-export function registerRunningHubSync(ctx, config) {
+export function registerRunningHubSync(ctx) {
   ctx.effect(
-    () => ctx.tools.register(createRunningHubImageTool(ctx, config)),
+    () => ctx.tools.register(createRunningHubImageTool(ctx)),
     'media-runninghub: runninghub_image tool',
   )
 }

@@ -259,7 +259,7 @@ async function judgeSite(ctx, ref, field, context) {
  * Register the `mediaRunningHubController` service exposing both status methods
  * and the site judgment.
  */
-function registerController(ctx, config) {
+function registerController(ctx) {
   /**
    * The running surface and the site verdict stored for one key.
    *
@@ -267,13 +267,19 @@ function registerController(ctx, config) {
    * which key the running tools read, so both status replies report it and
    * the page can show the other key read-only.
    *
-   * The verdict is read from the live Config reference, so a key saved a
-   * moment ago is reflected without reloading the plugin.
+   * The verdict is read from the live fiber config, not from the object
+   * `apply()` received. A Config write replaces the fiber's config object
+   * rather than mutating the captured one, so a captured reference would keep
+   * reporting the value it was created with and the tools would never see a
+   * verdict written after startup.
    */
-  const contextOf = (field) => ({
-    surface: config?.surface === 'jobs' ? 'jobs' : 'sync',
-    site: siteOf(config, field),
-  })
+  const contextOf = (field) => {
+    const live = ctx.fiber.config
+    return {
+      surface: live?.surface === 'jobs' ? 'jobs' : 'sync',
+      site: siteOf(live, field),
+    }
+  }
 
   const prototype = {
     async syncStatus() {
@@ -320,14 +326,13 @@ function registerController(ctx, config) {
  * Mount the configured surface.
  *
  * @param ctx - plugin context.
- * @param config - `{ surface, channel, syncSite, jobsSite }` from the profile patch.
  */
-export function apply(ctx, config) {
-  registerController(ctx, config)
+export function apply(ctx) {
+  registerController(ctx)
 
-  const surface = config?.surface === 'sync' ? 'sync' : 'jobs'
+  const surface = ctx.fiber.config?.surface === 'sync' ? 'sync' : 'jobs'
   if (surface === 'sync') {
-    registerRunningHubSync(ctx, config)
+    registerRunningHubSync(ctx)
   }
   // `jobs` surface is implemented by the workflow task pool; until it ships this
   // surface registers no tools and keeps only the configuration surfaces.
