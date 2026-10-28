@@ -310,7 +310,7 @@ while (还有未完成任务):
 
 | # | 问题 | 现状 / 倾向 |
 |---|---|---|
-| ① | **skill 放哪？** | ✅ 已查清，见 §8.3 |
+| ① | **skill 放哪？** | ✅ 已定：**`ctx.skills.register()`（runtime skill，随包分发）**，见 §8.3 |
 | ② | ~~watcher 已有 owner 时换不换 owner？~~ | ✅ 已定：**不换**，B 会话不唤醒（§3.2） |
 | ③ | **类型目录怎么给模型？** | 倾向 `runninghub_workflow_types` 工具（权威）+ skill 里放选择规则 |
 | ④ | **`runninghub_workflow_outputs` 做不做？** | 倾向**不做**——产物路径和费用直接放进唤醒消息 |
@@ -321,62 +321,53 @@ while (还有未完成任务):
 | ⑨ | **产物交付方式** | DSH 里文件怎么给用户？链接？直接路径？ |
 | ⑩ | **`media-drama`** 包何时做？ | jobs 落地之后 |
 
-### 8.3 skill 放哪？（已查清，2026-10-28）
+### 8.3 skill 怎么随插件分发？（已定，2026-10-28）
 
-`skill-filesystem` provider（`dsh-skill-filesystem/lib/index.js`）扫描 **5 类根目录**
-（`roots(cwd)` 方法，:149-187）：
+**结论：用 `ctx.skills.register()`（runtime skill）在插件 `apply()` 里直接注册，
+skill 内容作为包内文件随包分发。**
 
-| 来源 | 路径 | rank | 说明 |
-|---|---|---|---|
-| `project-dsh` | `<项目根>/.dsh/skills/` | 100 | 项目根 = 从 cwd 向上找到含 `.git` 的目录 |
-| `project-agents` | `<项目根>/.agents/skills/` | 200 | 同上 |
-| `custom` | 配置的 `customSkillDirs` | 300 | 由 skill-filesystem 的 Config 注入 |
-| `user-dsh` | `$DSH_HOME/skills/` | 400 | 即 `C:\Users\lj110\.dsh\skills\` |
-| `user-agents` | `<agentsHome>/skills/` | 500 | |
-| `bundled` | `DSH_BUNDLED_SKILL_DIR` 环境变量指定的目录 | 特殊 | 随 DSH 安装分发的技能 |
+**背景**：最初的倾向是「项目层 `.dsh/skills/`」，但用户指出两个问题：
+①这个 skill 是 `media-runninghub` 的**配套技能**，不该放在 `media-suite` 项目里；
+②要保证**每个安装插件的人**都能用——项目层只对 cwd 落在该仓库的会话可见，不满足。
 
-**发现方式**：根下每个**子目录**里的 `SKILL.md`（目录打包形态），或根下**直接的
-`*.md` 文件**（扁平形态）。frontmatter 必须含 `name` 和 `description`。
+**机制**（`@deepseek-ai/dsh-skill/lib/index.js:193-215`）：
 
-**项目根的判定**：`findProjectRoot(cwd)` 从会话 cwd 向上找**含 `.git` 的目录**（:810-818）。
-当前会话 cwd 是 `E:\2026\dsh-plugins`，向上找到 `E:\2026\dsh-plugins\media-suite\.git`，
-**所以项目根是 `E:\2026\dsh-plugins\media-suite`**。
-
-**结论——skill 有三个可行位置：**
-
-| 位置 | 路径 | 优点 | 缺点 |
-|---|---|---|---|
-| **A．项目层** | `E:\2026\dsh-plugins\media-suite\.dsh\skills\runninghub-workflow\SKILL.md` | **跟包同仓库**，随 git 分发，改完立即生效（watcher 监听） | 只在 cwd 落在这个仓库里的会话可见 |
-| **B．用户层** | `C:\Users\lj110\.dsh\skills\runninghub-workflow\SKILL.md` | **任何会话都可见** | 与包分离，装包不会带上 skill；要手动复制 |
-| **C．包内 + customSkillDirs** | 包内 `skill/` 目录 + skill-filesystem 的 Config 加 `customSkillDirs` | 随包分发，任何会话可见 | **要改 skill-filesystem 的 Config**（profile patch），侵入面大 |
-
-**倾向：A（项目层）为主，B 为可选补充。**
-
-理由：
-
-1. skill 属于这个插件包的**文档/流程**，跟包放同一个仓库最合理——版本同步、
-   改 skill 不用动 profile。
-2. `A` 的 watcher 是实时的（chokidar），改 `SKILL.md` 后技能目录立即刷新，
-   下一次模型回合就能读到。
-3. **B 的场景**：如果用户在**别的项目**（不同 cwd）里也想用 RunningHub 任务池，
-   project 层就扫不到了——这时要么复制到 user 层，要么等 C。
-
-**注意**：`include:skill-filesystem` 在当前 profile 是 **disabled**
-（之前 `list_plugins` 显示 `enabled: false`）。**如果它没启用，所有 skill 目录都不会被扫描**，
-`skill` 工具的目录里就没有我们的技能。需要先确认它是 disabled 还是只是没注册行——
-它的 provider 由 `dsh-skill` 挂载，`dsh-skill` 本身是 active 的。
-（待实测确认：装好 skill 后调 `skill` 工具看目录里有没有。）
-
-**skill 的 frontmatter 草案**：
-
-```yaml
----
-name: runninghub-workflow
-description: "RunningHub 工作流任务池的完整流程：11 种任务类型的选择规则、提交后禁止轮询、
-  自动批次语义、唤醒后取产物与费用报告。当用户提到工作流、任务池、批量、异步、
-  语音克隆、数字人、文生音乐、H3 视频时使用。"
----
+```js
+ctx.skills.register({
+  name: 'runninghub-workflow',
+  description: '...',
+  whenToUse: '...',
+  source: 'media-runninghub',
+  content: '<SKILL.md 的正文>',   // validateDefinition 要求 content 是 string
+})
 ```
+
+- `register()` 在 `apply()` 里同步调用，注册进调用上下文的层
+  （仓库插件 → 全局层），**所有会话可见，与 cwd 无关**。
+- 无需 `skill-filesystem`、无需文件扫描、无需项目根。
+- 运行时技能的 rank 是 250（介于 project 200 和 user 400 之间），
+  同名冲突时 project 层优先。
+- 重复注册同一名字会被忽略（first-wins + 警告）。
+- 插件卸载时 disposer 自动移除并刷新目录缓存。
+- `validateRuntimeSkill`（:465-469）要求 `name`（kebab-case）和 `description`
+  非空；加载时 `validateDefinition`（:471-490）要求 `content` 是 string。
+
+**content 的来源**：包内 `skill/runninghub-workflow/SKILL.md`（去掉 frontmatter
+后的正文），在 `apply()` 里读一次。frontmatter 的 name/description/whenToUse
+同时用于 `register()` 的元数据字段。
+
+**对比被否掉的方案**：
+
+| 方案 | 为什么不行 |
+|---|---|
+| 项目层 `.dsh/skills/` | 只对 cwd 落在该仓库的会话可见；且 skill 放在 media-suite 项目里而非插件包里 |
+| 用户层 `$DSH_HOME/skills/` | 与包分离，装包不带 skill，用户要手动复制 |
+| `customSkillDirs` 注入 | 要改 skill-filesystem 的 Config（profile patch），侵入面大 |
+| `DSH_BUNDLED_SKILL_DIR` | 那是 DSH 安装自带的技能目录，不是插件的 |
+
+**原 SKILL.md 的转写**：原技能 `SKILL.md`（141 行）里与任务池相关的规则
+（§5 的表）转写进 runtime skill 的 content；其余部分（标准 API、AI 应用、
+Persona、输出交付等）属于 `sync` 模式或 CLI 形态，不进这个 skill。
 
 ### 8.1 2026-10-28 补充：并发预算
 
