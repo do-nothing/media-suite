@@ -213,7 +213,7 @@ function createStatusTool() {
     name: 'runninghub_workflow_status',
     description:
       '查询 RunningHub 任务池的状态：当前批次、各状态任务数、最近的任务列表。'
-      + '池排空后 currentBatchId 为 null。',
+      + '池排空后 currentBatchId 为 0。',
     parameters: {
       type: 'object',
       properties: {
@@ -226,7 +226,7 @@ function createStatusTool() {
       schema: {
         type: 'object',
         properties: {
-          currentBatchId: { type: ['integer', 'null'] },
+          currentBatchId: { type: 'integer' },
           counts: { type: 'object' },
           tasks: { type: 'array', items: { type: 'object' } },
         },
@@ -236,7 +236,7 @@ function createStatusTool() {
       render: (_args, value) => {
         const c = value.counts
         const outstanding = (c.PENDING ?? 0) + (c.DISPATCHED ?? 0)
-        const batch = value.currentBatchId === null ? '已排空' : `#${value.currentBatchId}`
+        const batch = value.currentBatchId === 0 ? '已排空' : `#${value.currentBatchId}`
         return [{ type: 'text', text: `批次 ${batch}：${c.total} 个任务（在飞 ${outstanding}，成功 ${c.SUCCESS ?? 0}，失败 ${c.FAILED ?? 0}）` }]
       },
     },
@@ -245,7 +245,7 @@ function createStatusTool() {
         const tasks = await store.batchDetail(args.batchId)
         const counts = { total: tasks.length }
         for (const t of tasks) counts[t.status] = (counts[t.status] ?? 0) + 1
-        return { currentBatchId: (await store.currentBatchId()) ?? null, counts, tasks }
+        return { currentBatchId: (await store.currentBatchId()) ?? 0, counts, tasks }
       }
       return store.overview(typeof args?.limit === 'number' ? args.limit : 20)
     },
@@ -261,7 +261,8 @@ function startWatcherJob(ctx, site, ownerSession) {
   // The watcher settles via ctx.jobs when the pool drains, which appends
   // `job/settled` to the owning session (the wake). Release the singleton so
   // the next batch can start a fresh watcher.
-  ctx.jobs.events.subscribe({ owner: ownerSession }, (event) => {
+  const jobs = ctx.get('jobs')
+  jobs?.events.subscribe({ owner: ownerSession }, (event) => {
     if (event.type === 'settled' && event.job.id === jobId) activeWatcher = null
   })
 }
