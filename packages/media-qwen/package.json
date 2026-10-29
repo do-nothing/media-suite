@@ -1,8 +1,12 @@
 {
-  "name": "media-qwen",
+  "name": "@tmmk/media-qwen",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "packageManager": "pnpm@11.7.0",
   "description": "Qwen 媒体工具：多模态理解、语音合成与场景音频生成。",
   "license": "Apache-2.0",
   "exports": {

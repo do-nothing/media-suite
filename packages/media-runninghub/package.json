@@ -1,8 +1,12 @@
 {
-  "name": "media-runninghub",
+  "name": "@tmmk/media-runninghub",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "packageManager": "pnpm@11.7.0",
   "description": "RunningHub 媒体工具：Nano Banana 2 图片生成与工作流任务池。",
   "license": "Apache-2.0",
   "exports": {
@@ -37,6 +41,6 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/schemastery": "*"
+    "@deepseek-ai/schemastery": "^3.18.2"
   }
 }

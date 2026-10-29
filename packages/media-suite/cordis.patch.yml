@@ -7,4 +7,4 @@
 # setting.
 - insert:
     - id: media-suite
-      name: media-suite
+      name: '@tmmk/media-suite'

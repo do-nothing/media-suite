@@ -1,6 +1,6 @@
 - insert:
     - id: media-runninghub
-      name: media-runninghub
+      name: '@tmmk/media-runninghub'
       config:
         surface: jobs
         channel: lowprice
