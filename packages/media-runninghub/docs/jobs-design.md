@@ -325,20 +325,23 @@ while (还有未完成任务):
 
 ### 7.1 设置页（settings.section）
 
-设置页除了两张独立的 Key/账户卡，还提供：
+设置页用**标签页切换**：顶部 `sync` / `jobs` 切换，一次只渲染当前 `surface` 对应的
+卡片，另一张整块隐藏（不显示只读卡）。提供：
 
 - **`surface` 分段切换**（页面顶部 `sync` / `jobs`）：写普通 Config 字段 `surface`，
-  经 `settings.update` → 插件重载 → 重注册对应 surface 的工具。切换后立即刷新
-  config 与两卡状态。
+  经 `configEditor.edit` → 插件重载 → 重注册对应 surface 的工具。切换后立即刷新
+  config 与当前卡状态。
 - **jobs 卡内「任务池设置」区**：`concurrency`（全局并发上限）与
-  `pollIntervalSeconds`（轮询间隔，秒）。仅当 `surface === jobs` 时可编辑；
-  `sync` 下置灰禁用并提示「仅在 jobs 模式可编辑」。
+  `pollIntervalSeconds`（轮询间隔，秒）。仅当 `surface === jobs` 时该卡显示并可编辑。
 - `concurrency` Schema 上限为 **100**（`Schema.number().step(1).min(1).max(100).default(2)`）。
 
 写入走 Host 侧 `mediaRunningHubController` 的 remote 方法
 `configStatus` / `setSurface` / `setPoolFields`，经 `typert` 参数化 remote
-（`parameters: [{ name, wire, source:'json', codec:{ mode:'src-json' } }]`，
-与 `dsh-cost-meter` 的参数化 descriptor 同形）。
+（`parameters: [{ name, wire, source:'json', codec:{ mode:'strict', ... } }]`）。
+`surface` / `concurrency` / `pollIntervalSeconds` 是**普通（非 volatile）Config 字段**，
+`settings.update` 只接受 volatile 字段（否则抛 `Config field "..." is not volatile`），
+因此这类写入必须用 `ctx.configEditor.edit(entry, ...)` 完成——它编辑完整配置并经
+Loader 正常路径应用，普通字段变更即触发插件重载。
 
 ---
 

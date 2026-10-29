@@ -180,7 +180,7 @@ window.__ModuleLoader__.load({
       zh: {
         sectionLabel: 'RunningHub 媒体',
         title: 'RunningHub 媒体',
-        intro: '配置 RunningHub 的两个 API Key：sync 模式用于模型 API 同步出图，jobs 模式用于工作流任务池。当前运行的模式可以编辑，另一个只读展示。',
+        intro: '配置 RunningHub 的两个 API Key：sync 模式用于模型 API 同步出图，jobs 模式用于工作流任务池。通过顶部标签在两者间切换，当前运行的模式在此查看与编辑。',
         loading: '正在读取密钥状态…',
         configured: '已配置',
         configuredStored: '已配置 · 凭据库',
@@ -253,7 +253,7 @@ window.__ModuleLoader__.load({
       en: {
         sectionLabel: 'RunningHub Media',
         title: 'RunningHub Media',
-        intro: 'Configure the two RunningHub API keys: sync drives the model API for synchronous images, jobs drives the workflow task pool. The running surface is editable; the other one is shown read-only.',
+        intro: 'Configure the two RunningHub API keys: sync drives the model API for synchronous images, jobs drives the workflow task pool. Switch between them with the tab above and view or edit the running surface.',
         loading: 'Reading key status…',
         configured: 'Configured',
         configuredStored: 'Configured · store',
