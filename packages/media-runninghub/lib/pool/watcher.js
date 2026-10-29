@@ -153,7 +153,7 @@ export function startWatcher(ctx, site, cfg, agent) {
   job = jobs.start({
     kind: 'runninghub-pool',
     label: 'RunningHub 任务池 watcher',
-    owner: agent,
+    owner: agent?.id,
     run(handle) {
       job = { ...job, handle }
       return hooks

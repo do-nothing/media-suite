@@ -11,7 +11,7 @@
 
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, dirname } from 'node:path'
 
 const SITES = {
   cn: 'https://www.runninghub.cn',
@@ -104,7 +104,9 @@ export async function downloadFile(url, outputPath) {
     if (buffer.length === 0) {
       return { ok: false, errorType: 'NETWORK', errorMessage: 'empty download' }
     }
-    await (await import('node:fs/promises')).writeFile(outputPath, buffer)
+    const { mkdir, writeFile } = await import('node:fs/promises')
+    await mkdir(dirname(outputPath), { recursive: true })
+    await writeFile(outputPath, buffer)
     return { ok: true, path: outputPath, size: buffer.length }
   } catch (error) {
     return { ok: false, errorType: 'NETWORK', errorMessage: String(error) }

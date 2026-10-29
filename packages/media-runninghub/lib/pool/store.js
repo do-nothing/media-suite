@@ -200,11 +200,11 @@ export async function taskById(rowId) {
   return db.prepare('SELECT * FROM tasks WHERE id = ?').get(rowId) ?? null
 }
 
-/** The batch that still has outstanding tasks, or null when the pool drained. */
+/** The batch that still has outstanding tasks, or 0 when the pool drained. */
 export async function currentBatchId() {
   const db = await open()
   const row = db.prepare("SELECT MAX(batch_id) AS b FROM tasks WHERE status IN ('PENDING','DISPATCHED')").get()
-  return row?.b ?? null
+  return row?.b ?? 0
 }
 
 /** Overview for the status tool: current batch, counts, and the newest tasks. */
