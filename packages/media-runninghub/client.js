@@ -993,7 +993,7 @@ window.__ModuleLoader__.load({
           : null,
         infos === null
           ? h('p', { className: 'media-rh-muted' }, t('loading'))
-          : KEYS.map(entry => {
+          : KEYS.filter(entry => entry.surface === surface).map(entry => {
               const panel = panelFor(entry)
               return h(KeyCard, {
                 key: entry.ref,
