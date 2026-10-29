@@ -3,7 +3,8 @@
 本文记录 `surface: jobs`（RunningHub 工作流任务池）的设计决策与依据。
 原技能参考实现：`C:\Users\lj110\dev\OpenClaw_RH_Skills\runninghub`。
 
-> **状态**：设计进行中。已定论项见 §2，未定论项见 §8。
+> **状态**：设计已收敛、jobs 已实现（三个工具 + 单例 watcher + runtime skill）。
+> 2026-10-29 首轮打穿测试通过全链路，并暴露两个真实 bug（均已被修复，见下）。已定论项见 §2，未定论项见 §8。
 > 讨论已经过多轮，**本文是决策的唯一权威来源**——上下文被压缩后以本文为准。
 
 ---
@@ -226,6 +227,24 @@ while (还有未完成任务):
   保证多次结果与 node 槽位对应稳定）。
 - 指定 `outputName` 时：`<name>.<ext>`（单个）或 `<name>_<seq>.<ext>`（多个）。
 - **多产物必须支持**：例如 `music-yue2` 一个任务产出 3 个 MP3（混音/伴奏/人声干声）。
+
+### 3.6 首轮打穿测试记录（2026-10-29）
+
+全链路验证通过：提交 → enqueue（批次自动派生）→ 单例 watcher 启动 →
+轮询 → 判定 SUCCESS（捕获费用）→ 排空 → **自动唤醒提交会话**（无显式 prompt）。
+3 张计费 `image-gen-qwen` 图，共 **66 RH 币**（20 + 21 + 19，每 ~20 币）。
+
+**暴露并已修复的两个 bug：**
+
+1. **产物下载 ENOENT**（已修，commit `95c6114`）：`downloadFile` 写盘前不建父目录，
+   默认落点 `output_root/batch-<id>/<taskId>_<nodeId>_<idx>.<ext>` 的 `batch-<id>/`
+   目录不存在 → 任务 SUCCESS 但所有产物 `ok:0`。修复：写前 `mkdir(dirname,{recursive})`。
+2. **排空后 `currentBatchId` 类型**（已修，同 commit）：`currentBatchId()` 排空返回 `null`，
+   status 工具的 `{type:'integer'}` schema 拒绝 → 报 "must be an integer"。修复：排空返回 `0`
+   与"已排空→0"约定一致。
+
+**测试期发现但非产品 bug：** 测试中多次失败提交实则在 enqueue 后、watcher 启动前抛错，
+导致台账残留重复任务与 `SUBMIT_FAILED`（`404`、`421 TASK_QUEUE_MAXED`）。
 
 ---
 
