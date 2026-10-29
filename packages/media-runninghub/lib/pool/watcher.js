@@ -27,7 +27,10 @@ async function tick(apiKey, site, job, cfg) {
   for (const task of tasks.filter((t) => t.status === 'PENDING')) {
     if (inFlight >= cfg.concurrency) break
     const request = JSON.parse(task.request_json)
-    const result = await client.createWorkflow(apiKey, { apiKey, ...request }, site)
+    const nodes = JSON.parse(task.node_json ?? '[]')
+    const payload = { apiKey, ...request }
+    if (Array.isArray(nodes) && nodes.length > 0) payload.nodeInfoList = nodes
+    const result = await client.createWorkflow(apiKey, payload, site)
     if (result.ok) {
       await store.setDispatched(task.id, result.taskId)
       inFlight += 1

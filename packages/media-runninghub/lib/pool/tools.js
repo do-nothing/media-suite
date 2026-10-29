@@ -20,6 +20,12 @@ import { startWatcher } from './watcher.js'
 // Whatever session started the watcher owns it; later submitters reuse it.
 let activeWatcher = null
 
+/** Parse `cost_json` text from an overview row; null when not valid JSON. */
+function safeJson(text) {
+  if (typeof text !== 'string' || text.length === 0) return null
+  try { return JSON.parse(text) } catch { return null }
+}
+
 /**
  * Register the workflow tools for the `jobs` surface.
  *
@@ -241,7 +247,33 @@ function createStatusTool() {
         const c = value.counts
         const outstanding = (c.PENDING ?? 0) + (c.DISPATCHED ?? 0)
         const batch = value.currentBatchId === 0 ? '已排空' : `#${value.currentBatchId}`
-        return [{ type: 'text', text: `批次 ${batch}：${c.total} 个任务（在飞 ${outstanding}，成功 ${c.SUCCESS ?? 0}，失败 ${c.FAILED ?? 0}）` }]
+        let text = `批次 ${batch}：${c.total} 个任务（在飞 ${outstanding}，成功 ${c.SUCCESS ?? 0}，失败 ${c.FAILED ?? 0}）`
+
+        // Surface fees so a delivery reports the amount. Accept both shapes:
+        // batchDetail tasks have parsed `costs`, overview rows carry `cost_json`
+        // as a JSON string. Aggregate coins / cash / third-party across all
+        // successful tasks in this view.
+        const costs = []
+        for (const t of Array.isArray(value.tasks) ? value.tasks : []) {
+          if (t === null || typeof t !== 'object') continue
+          const raw = t.costs ?? (t.cost_json ? safeJson(t.cost_json) : null)
+          if (raw === null || raw === undefined) continue
+          const coins = Number(raw.coins) || 0
+          const money = Number(raw.money) || 0
+          const third = Number(raw.thirdParty) || 0
+          if (coins || money || third) costs.push({ coins, money, third })
+        }
+        if (costs.length > 0) {
+          const sum = costs.reduce((a, x) => ({
+            coins: a.coins + x.coins, money: a.money + x.money, third: a.third + x.third,
+          }), { coins: 0, money: 0, third: 0 })
+          const parts = []
+          if (sum.coins) parts.push(`${sum.coins} RH 币`)
+          if (sum.money) parts.push(`现金 ${sum.money.toFixed(2)}`)
+          if (sum.third) parts.push(`第三方 ${sum.third.toFixed(2)}`)
+          if (parts.length > 0) text += `；已计费 ${parts.join('，')}`
+        }
+        return [{ type: 'text', text }]
       },
     },
     async execute(args) {
