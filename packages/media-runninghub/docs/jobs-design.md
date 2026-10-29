@@ -81,7 +81,7 @@ RunningHub 的 420 个标准 API 端点属于 `sync` 模式的职责，不在 `j
 | 原键 | DSH Config | 类型 | 说明 |
 |---|---|---|---|
 | `concurrency` | `concurrency` | number | **全局预算**（跨会话共享，见 §3.2） |
-| `defaultInstanceType` | `defaultInstanceType` | string | |
+| `defaultInstanceType` | `defaultInstanceType` | string | 已暴露。逐类型未固定 `instanceType` 时的回退值（`TaskType.instanceType` getter：固定值或此回退，见 §2.4） |
 | `pollIntervalSeconds` | `pollIntervalSeconds` | number | 轮询节奏 |
 | `retry.startupFailures` | `retryStartupFailures` | boolean | 平铺 |
 | `retry.maxStartupRetries` | `retryMaxStartupRetries` | number | 平铺 |

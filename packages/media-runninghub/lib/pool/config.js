@@ -5,6 +5,7 @@
 
 let config = {
   concurrency: 2,
+  defaultInstanceType: 'default',
   pollIntervalSeconds: 30,
   retryStartupFailures: true,
   maxStartupRetries: 2,

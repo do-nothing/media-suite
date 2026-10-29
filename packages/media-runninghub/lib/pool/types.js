@@ -10,6 +10,7 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { poolConfig } from './config.js'
 
 const PKG_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const TASK_TYPES_PATH = join(PKG_DIR, 'config', 'task-types.json')
@@ -58,9 +59,16 @@ export class TaskType {
     this.displayName = String(d.displayName ?? d.typeId)
     this.description = String(d.description ?? '')
     this.workflowId = String(d.workflowId)
-    this.instanceType = String(d.instanceType ?? 'default')
+    // A type may pin an instance type (e.g. "plus"). When it does not, the
+    // effective value falls back to the global Config `defaultInstanceType`.
+    this._instanceType = d.instanceType ? String(d.instanceType) : undefined
     this.params = (d.params ?? []).map((p) => new Param(p))
     this.fixedOverrides = Array.isArray(d.fixedOverrides) ? d.fixedOverrides : []
+  }
+
+  /** The instance type used for this type: pinned value, else the global default. */
+  get instanceType() {
+    return this._instanceType ?? poolConfig().defaultInstanceType ?? 'default'
   }
 
   param(name) {

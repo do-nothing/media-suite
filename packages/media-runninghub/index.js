@@ -70,6 +70,8 @@ export const Config = Schema.object({
     .description('jobs Key 所属站点：cn 为中国站，intl 为国际站。保存 Key 时按余额币种自动判定。'),
   concurrency: Schema.number().step(1).min(1).max(20).default(2)
     .description('任务池的全局并发上限：同时在飞的 RunningHub 任务数。'),
+  defaultInstanceType: Schema.string().default('default')
+    .description('任务池默认实例类型；任务类型未单独固定 instanceType 时生效（如 "default" / "plus"）。'),
   pollIntervalSeconds: Schema.number().step(1).min(5).max(600).default(30)
     .description('任务池的轮询节奏（秒）。'),
 })
@@ -344,6 +346,7 @@ export function apply(ctx) {
   } else {
     setPoolConfig({
       concurrency: typeof live.concurrency === 'number' ? live.concurrency : 2,
+      defaultInstanceType: typeof live.defaultInstanceType === 'string' && live.defaultInstanceType.trim() ? live.defaultInstanceType.trim() : 'default',
       pollIntervalSeconds: typeof live.pollIntervalSeconds === 'number' ? live.pollIntervalSeconds : 30,
     })
     registerWorkflowTools(ctx)
