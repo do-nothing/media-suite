@@ -12,32 +12,30 @@ import { fileURLToPath } from 'node:url'
 const PKG_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const SKILL_PATH = join(PKG_DIR, 'skill', 'runninghub-workflow', 'SKILL.md')
 
-/** Register the workflow skill on ctx.skills. Safe to call once per apply. */
+/** Register the runninghub-workflow skill on ctx.skills. */
 export function registerWorkflowSkill(ctx) {
   const skills = ctx.get('skills')
   if (skills === undefined) return
-  ctx.effect(
-    () => registerOnce(skills),
-    'media-runninghub: runninghub-workflow skill',
-  )
-}
-
-async function registerOnce(skills) {
-  let content
-  try {
-    content = await readFile(SKILL_PATH, 'utf8')
-  } catch (error) {
-    throw new Error(`media-runninghub: cannot read the workflow skill at ${SKILL_PATH}: ${error?.message ?? error}`)
-  }
-  const { name, description, whenToUse, body } = splitFrontmatter(content)
-  skills.register({
-    name,
-    description,
-    ...(whenToUse !== undefined ? { whenToUse } : {}),
-    source: 'media-runninghub',
-    content: body,
-    path: SKILL_PATH,
-  })
+  ctx.effect(async () => {
+    let content
+    try {
+      content = await readFile(SKILL_PATH, 'utf8')
+    } catch (error) {
+      throw new Error(`media-runninghub: cannot read the workflow skill at ${SKILL_PATH}: ${error?.message ?? error}`)
+    }
+    const { name, description, whenToUse, body } = splitFrontmatter(content)
+    // skills.register() returns a Cordis effect disposer; returning it from
+    // this effect wires the skill into the plugin lifecycle so it is removed
+    // when the plugin reloads (e.g. when surface switches away from jobs).
+    return skills.register({
+      name,
+      description,
+      ...(whenToUse !== undefined ? { whenToUse } : {}),
+      source: 'media-runninghub',
+      content: body,
+      path: SKILL_PATH,
+    })
+  }, 'media-runninghub: runninghub-workflow skill')
 }
 
 /** Split a SKILL.md into its frontmatter fields and body. */

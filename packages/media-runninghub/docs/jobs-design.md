@@ -365,6 +365,13 @@ Loader 正常路径应用，普通字段变更即触发插件重载。
 **结论：用 `ctx.skills.register()`（runtime skill）在插件 `apply()` 里直接注册，
 skill 内容作为包内文件随包分发。**
 
+**作用域（2026-10-29 定）：skill 只在 `surface === jobs` 分支注册**，与 workflow
+工具同进退——切回 `sync` 时随插件重载一起卸载（不残留一份指向不存在工具的技能）。
+`registerWorkflowSkill` 把 `ctx.skills.register()` 返回的 effect disposer 从
+`ctx.effect` 回调里返回（`ctx.effect(async () => { ...; return skills.register(...) })`）：
+Cordis `effect` 支持 async factory，`effect.then(safeCollect)` 把 resolved disposer
+收进插件生命周期，插件 dispose/重载时同步移除该 skill。
+
 **背景**：最初的倾向是「项目层 `.dsh/skills/`」，但用户指出两个问题：
 ①这个 skill 是 `media-runninghub` 的**配套技能**，不该放在 `media-suite` 项目里；
 ②要保证**每个安装插件的人**都能用——项目层只对 cwd 落在该仓库的会话可见，不满足。

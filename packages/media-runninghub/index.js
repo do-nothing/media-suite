@@ -407,6 +407,6 @@ export function apply(ctx) {
       pollIntervalSeconds: typeof live.pollIntervalSeconds === 'number' ? live.pollIntervalSeconds : 30,
     })
     registerWorkflowTools(ctx)
+    registerWorkflowSkill(ctx)
   }
-  registerWorkflowSkill(ctx)
 }

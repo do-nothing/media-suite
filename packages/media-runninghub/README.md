@@ -13,9 +13,7 @@ surface: sync | jobs
 | `sync` | `runninghub_image`：Nano Banana 2 同步图片生成 | `RUNNINGHUB_SYNC_API_KEY` |
 | `jobs` | 工作流任务池（未实现） | `RUNNINGHUB_JOBS_API_KEY` |
 
-切换 `surface` 会重载插件：旧工具注销、新工具注册，下一次模型请求生效。桌面版不需要重启。
-
-`jobs` 目前不注册任何工具，只保留配置与状态界面；任务池实现后由它接管。
+切换 `surface` 会重载插件：旧工具注销、新工具注册，下一次模型请求生效。桌面版不需要重启。`jobs` 模式额外注入 `runninghub-workflow` 技能与任务池 watcher，切回 `sync` 时一并卸载。
 
 ## `runninghub_image`
 
