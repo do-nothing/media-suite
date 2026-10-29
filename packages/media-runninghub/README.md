@@ -108,5 +108,5 @@ RunningHub 有两个站：中国站 `www.runninghub.cn` 和国际站 `www.runnin
 ## 安装
 
 ```powershell
-plugin_manager install_bundle E:\2026\dsh-plugins\media-suite\packages\media-runninghub
+plugin_manager install_bundle .\packages\media-runninghub
 ```

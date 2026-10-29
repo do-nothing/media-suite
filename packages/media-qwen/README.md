@@ -86,7 +86,7 @@ Key 写入 `$DSH_HOME/.credentials.yaml` 的 `refs:` 段，由 Harness 凭据服
 ## 安装
 
 ```powershell
-plugin_manager install_bundle E:\2026\dsh-plugins\media-suite\packages\media-qwen
+plugin_manager install_bundle .\packages\media-qwen
 ```
 
 或安装 `media-suite` 一次得到整套媒体能力。

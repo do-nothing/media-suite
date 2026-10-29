@@ -40,5 +40,14 @@
 ## 安装单个包
 
 ```powershell
-plugin_manager install_bundle E:\2026\dsh-plugins\media-suite\packages\media-qwen
+# 在本仓库根目录下：
+plugin_manager install_bundle .\packages\media-qwen
 ```
+
+## 开源许可
+
+本项目以 **Apache-2.0** 协议开源。详见根目录 [LICENSE](LICENSE)。
+
+## 从源码安装（开源使用者）
+
+把整个仓库 clone 下来后，各包保持原有目录结构即可用本地路径安装；`media-suite` 对 `media-qwen` / `media-runninghub` 的依赖是 `file:` 本地路径，clone 后按原目录放置即可正常 install。各包要求凭据请见各自 README（密钥统一放 `$DSH_HOME/.credentials.yaml` 的 `refs:` 段，不入仓库）。

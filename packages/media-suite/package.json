@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "媒体插件家族：一次安装 Qwen 与 RunningHub 媒体能力，并提供跨 provider 的全局设置。",
+  "license": "Apache-2.0",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

@@ -52,5 +52,5 @@ provider 是独立的 bundle，各自带 `dsh.bundle.patch`。它们在 suite �
 ## 安装
 
 ```powershell
-plugin_manager install_bundle E:\2026\dsh-plugins\media-suite\packages\media-suite
+plugin_manager install_bundle .\packages\media-suite
 ```

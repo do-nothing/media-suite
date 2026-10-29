@@ -1,7 +1,7 @@
 # media-runninghub `jobs` 模式设计
 
 本文记录 `surface: jobs`（RunningHub 工作流任务池）的设计决策与依据。
-原技能参考实现：`C:\Users\lj110\dev\OpenClaw_RH_Skills\runninghub`。
+原技能参考实现来自 RunningHub 社区技能 `runninghub`（本仓库发布时未随仓库开源；node/API 契约的对应关系已在各处注释说明）。
 
 > **状态**：设计已收敛、jobs 已实现（三个工具 + 单例 watcher + runtime skill）。
 > 2026-10-29 首轮打穿测试通过全链路，并暴露两个真实 bug（均已被修复，见下）。已定论项见 §2，未定论项见 §8。

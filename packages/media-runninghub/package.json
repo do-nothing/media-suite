@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "RunningHub 媒体工具：Nano Banana 2 图片生成与工作流任务池。",
+  "license": "Apache-2.0",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
