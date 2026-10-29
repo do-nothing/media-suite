@@ -833,8 +833,8 @@ window.__ModuleLoader__.load({
        */
       const loadConfig = React.useCallback(() => {
         const remote = ctx.get('remote.mediaRunningHub')
-        if (remote === undefined || typeof remote.configStatus !== 'function') return
-        remote.configStatus()
+        if (remote === undefined || typeof remote.configStatus !== 'function') return Promise.resolve()
+        return remote.configStatus()
           .then((response) => {
             const value = unwrap(response, 'config status was refused')
             if (value !== null && typeof value === 'object') {
