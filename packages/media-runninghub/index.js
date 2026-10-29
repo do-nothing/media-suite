@@ -290,14 +290,24 @@ function registerController(ctx) {
     }
   }
 
-  /** Write one Config value through the settings service (logs on failure). */
+  /**
+   * Write one or more Config values through the profile config editor.
+   *
+   * `surface`, `concurrency` and `pollIntervalSeconds` are ordinary (volatile
+   * absent) Config fields, so `settings.update` — which only accepts volatile
+   * fields — rejects them. `configEditor.edit` edits the complete raw config and
+   * applies it through the normal Loader path, so ordinary-field changes reload
+   * the plugin and re-register the tools of the new surface, which is exactly
+   * the lifecycle `surface` switching intends.
+   */
   const writeConfig = async (patch, message) => {
-    const settings = ctx.get('settings')
-    if (settings === undefined) {
-      return { ok: false, status: 'error', message: '设置服务不可用' }
+    const editor = ctx.get('configEditor')
+    const entry = ctx.fiber.entry
+    if (editor === undefined || entry === undefined) {
+      return { ok: false, status: 'error', message: '配置编辑器不可用' }
     }
     try {
-      await settings.update(NAMESPACE, patch)
+      await editor.edit(entry, (current) => ({ ...current, ...patch }))
       return { ok: true, status: 'ok', message: undefined }
     } catch (error) {
       return { ok: false, status: 'error', message: `${message}：${error?.message ?? '未知原因'}` }

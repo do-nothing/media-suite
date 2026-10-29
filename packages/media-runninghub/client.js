@@ -136,7 +136,11 @@ window.__ModuleLoader__.load({
               name: 'target',
               wire: 'target',
               source: 'json',
-              codec: { mode: 'src-json' },
+              codec: {
+                mode: 'strict',
+                typeSymbol: 'media-runninghub#mediaRunningHub/setSurface:target',
+                create: () => ({ parse: value => value }),
+              },
             },
           ],
           result: {
@@ -156,7 +160,11 @@ window.__ModuleLoader__.load({
               name: 'fields',
               wire: 'fields',
               source: 'json',
-              codec: { mode: 'src-json' },
+              codec: {
+                mode: 'strict',
+                typeSymbol: 'media-runninghub#mediaRunningHub/setPoolFields:fields',
+                create: () => ({ parse: value => value }),
+              },
             },
           ],
           result: {
