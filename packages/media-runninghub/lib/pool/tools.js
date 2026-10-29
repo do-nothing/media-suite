@@ -339,5 +339,12 @@ async function resolveJobsApiKey(ctx) {
   } catch { return undefined }
 }
 
-// Re-exports for the startWatcher wiring in index.js.
-export { client, store }
+/** Ensure the single global watcher is running (e.g. after a manual resubmit). */
+export function ensurePoolWatcher(ctx) {
+  if (activeWatcher !== null) return
+  startWatcherJob(ctx, siteOfConfig(ctx), undefined)
+}
+
+// Re-exports for the startWatcher wiring in index.js and the settings page's
+// pool-status controller.
+export { client, store, siteOfConfig, resolveJobsApiKey }

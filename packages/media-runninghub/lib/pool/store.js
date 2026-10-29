@@ -210,7 +210,9 @@ export async function currentBatchId() {
 /** Overview for the status tool: current batch, counts, and the newest tasks. */
 export async function overview(limit = 20) {
   const db = await open()
-  const counts = { total: 0, PENDING: 0, DISPATCHED: 0, SUCCESS: 0, FAILED: 0, SUBMIT_FAILED: 0 }
+  const counts = {
+    total: 0, PENDING: 0, DISPATCHED: 0, SUCCESS: 0, FAILED: 0, SUBMIT_FAILED: 0, CANCELLED: 0,
+  }
   for (const row of db.prepare('SELECT status, COUNT(*) AS c FROM tasks GROUP BY status').all()) {
     counts.total += row.c
     if (row.status in counts) counts[row.status] = row.c
@@ -219,16 +221,60 @@ export async function overview(limit = 20) {
   return { currentBatchId: await currentBatchId(), counts, tasks }
 }
 
+/** All distinct batch ids, newest first, for dashboard batch navigation. */
+export async function batches() {
+  const db = await open()
+  return db.prepare('SELECT DISTINCT batch_id AS b FROM tasks ORDER BY b DESC').all().map((r) => Number(r.b))
+}
+
+/** Mark a task row cancelled. Its RunningHub counterpart (if any) is its caller's job. */
+export async function setCancelled(rowId) {
+  const db = await open()
+  db.prepare("UPDATE tasks SET status = 'CANCELLED', updated_at = ? WHERE id = ?").run(now(), rowId)
+}
+
+/**
+ * Replay one finished/terminal task verbatim: a fresh PENDING row in the same
+ * batch, copying `request_json` and `node_json` so the RunningHub中转 file ids
+ * are reused without re-uploading local files.
+ *
+ * @returns { { id: number, batchId: number } } or null when the row is missing.
+ */
+export async function requeue(rowId) {
+  const db = await open()
+  const src = db.prepare('SELECT * FROM tasks WHERE id = ?').get(rowId)
+  if (!src) return null
+  const ts = now()
+  const info = db.prepare(`
+    INSERT INTO tasks (batch_id, type_id, workflow_id, instance_type, request_json,
+                       node_json, params_json, output_dir, output_name, output_root,
+                       status, session_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)
+  `).run(
+    src.batch_id, src.type_id, src.workflow_id, src.instance_type,
+    src.request_json, src.node_json, src.params_json,
+    src.output_dir, src.output_name, src.output_root,
+    src.session_id, ts, ts,
+  )
+  return { id: Number(info.lastInsertRowid), batchId: Number(src.batch_id) }
+}
+
 /** Every task in one batch, plus its outputs. */
 export async function batchDetail(batchId) {
   const db = await open()
   const tasks = db.prepare('SELECT * FROM tasks WHERE batch_id = ? ORDER BY id').all(batchId)
   for (const task of tasks) {
-    task.outputs = db.prepare('SELECT * FROM outputs WHERE task_row = ? ORDER BY id').all(task.id)
+    task.outputs = await outputsOf(task.id)
     task.params = safeParse(task.params_json)
     task.costs = safeParse(task.cost_json)
   }
   return tasks
+}
+
+/** The downloaded outputs of one task row. */
+export async function outputsOf(taskRowId) {
+  const db = await open()
+  return db.prepare('SELECT * FROM outputs WHERE task_row = ? ORDER BY id').all(taskRowId)
 }
 
 /** Distinct sessions that submitted tasks into one batch (for wake records). */

@@ -25,7 +25,14 @@
 import { registerRunningHubSync } from './lib/image.js'
 import { setPoolConfig } from './lib/pool/config.js'
 import { registerWorkflowSkill } from './lib/pool/skill.js'
-import { registerWorkflowTools } from './lib/pool/tools.js'
+import {
+  registerWorkflowTools,
+  ensurePoolWatcher,
+  client as rhClient,
+  store as poolStore,
+  siteOfConfig as poolSiteOfConfig,
+  resolveJobsApiKey as resolveJobsKey,
+} from './lib/pool/tools.js'
 import {
   JOBS_REF,
   SYNC_REF,
@@ -92,6 +99,12 @@ function textOf(value, fallback) {
   if (value === undefined || value === null) return fallback
   const text = String(value).trim()
   return text.length === 0 ? fallback : text
+}
+
+/** Parse a JSON text column, or null when absent/invalid. */
+function safeJson(text) {
+  if (typeof text !== 'string' || text.length === 0) return null
+  try { return JSON.parse(text) } catch { return null }
 }
 
 /**
@@ -361,6 +374,75 @@ function registerController(ctx) {
         ? { status: 'ok', message: undefined }
         : { status: 'error', message: wrote.message }
     },
+    /**
+     * Read the task-pool ledger for the settings dashboard.
+     *
+     * With a `batchId` it returns that batch's full detail (parsed costs and
+     * outputs); otherwise the current overview (current batch, counts, the
+     * newest tasks). Works regardless of the running `surface` — the ledger is
+     * shared.
+     */
+    async poolStatus(input) {
+      const batchId = Number(input?.batchId)
+      const limit = Number.isInteger(input?.limit) && input.limit > 0 ? Number(input.limit) : 50
+      if (Number.isInteger(batchId) && batchId > 0) {
+        const tasks = await poolStore.batchDetail(batchId)
+        const counts = { total: tasks.length }
+        for (const task of tasks) counts[task.status] = (counts[task.status] ?? 0) + 1
+        return {
+          status: 'ok',
+          currentBatchId: (await poolStore.currentBatchId()) ?? 0,
+          counts,
+          tasks,
+          allBatches: await poolStore.batches(),
+        }
+      }
+      const value = await poolStore.overview(limit)
+      // Enrich overview rows the way batchDetail does, so the dashboard shows
+      // costs and outputs even when viewing the current overview (e.g. drained).
+      const enriched = []
+      for (const task of value.tasks) {
+        const row = { ...task }
+        row.costs = safeJson(task.cost_json)
+        row.params = safeJson(task.params_json)
+        row.outputs = await poolStore.outputsOf(task.id)
+        enriched.push(row)
+      }
+      return { status: 'ok', currentBatchId: value.currentBatchId, counts: value.counts, tasks: enriched, allBatches: await poolStore.batches() }
+    },
+    /**
+     * Cancel one task: ask RunningHub to cancel a dispatched task, then mark
+     * the ledger row CANCELLED.
+     */
+    async poolCancel(cmd) {
+      const rowId = Number(cmd?.rowId)
+      if (!Number.isInteger(rowId) || rowId <= 0) return { status: 'error', message: '无效的任务编号' }
+      const task = await poolStore.taskById(rowId)
+      if (!task) return { status: 'error', message: '任务不存在' }
+      if (task.status !== 'DISPATCHED' && task.status !== 'PENDING') {
+        return { status: 'error', message: `任务已处于 ${task.status} 状态，不能取消` }
+      }
+      if (task.status === 'DISPATCHED' && task.task_id) {
+        const apiKey = await resolveJobsKey(ctx)
+        if (!apiKey) return { status: 'error', message: '未配置 RUNNINGHUB_JOBS_API_KEY' }
+        const result = await rhClient.cancelTask(apiKey, task.task_id, poolSiteOfConfig(ctx))
+        if (!result.ok) return { status: 'error', message: `取消失败：${result.errorMessage}` }
+      }
+      await poolStore.setCancelled(rowId)
+      return { status: 'ok', message: undefined }
+    },
+    /**
+     * Replay one terminal task verbatim: a fresh PENDING row reusing the stored
+     * RunningHub中转 file ids (no local re-upload). Ensures the watcher runs.
+     */
+    async poolResubmit(cmd) {
+      const rowId = Number(cmd?.rowId)
+      if (!Number.isInteger(rowId) || rowId <= 0) return { status: 'error', message: '无效的任务编号' }
+      const replayed = await poolStore.requeue(rowId)
+      if (!replayed) return { status: 'error', message: '任务不存在' }
+      ensurePoolWatcher(ctx)
+      return { status: 'ok', newRowId: replayed.id, batchId: replayed.batchId, message: undefined }
+    },
   }
   Object.defineProperty(prototype, REMOTE_METHODS_KEY, {
     value: {
@@ -373,6 +455,9 @@ function registerController(ctx) {
         { method: 'configStatus', invocation: { kind: 'direct' } },
         { method: 'setSurface', invocation: { kind: 'direct' } },
         { method: 'setPoolFields', invocation: { kind: 'direct' } },
+        { method: 'poolStatus', invocation: { kind: 'direct' } },
+        { method: 'poolCancel', invocation: { kind: 'direct' } },
+        { method: 'poolResubmit', invocation: { kind: 'direct' } },
       ],
     },
     configurable: true,

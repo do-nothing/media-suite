@@ -18,6 +18,7 @@ const SITES = {
 
 const CREATE_PATH = '/task/openapi/create'
 const QUERY_PATH = '/openapi/v2/query'
+const CANCEL_PATH = '/task/openapi/cancel'
 
 /** Error-type taxonomy (recorded only; the watcher decides what to do). */
 export const ET = {
@@ -112,6 +113,35 @@ export async function createWorkflow(apiKey, payload, site) {
 function asNumber(value) {
   const n = Number(value)
   return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Cancel a dispatched task at RunningHub.
+ *
+ * Success: { ok: true } (the ledger then marks the row CANCELLED)
+ * Failure: { ok: false, errorType, errorCode, errorMessage }
+ */
+export async function cancelTask(apiKey, taskId, site) {
+  const url = `${siteHost(site)}${CANCEL_PATH}`
+  const result = await postJson(url, { apiKey, taskId }, apiKey)
+  if (result.networkError) {
+    return { ok: false, errorType: ET.NETWORK, errorCode: '', errorMessage: String(result.networkError) }
+  }
+  const { parsed } = result
+  if (parsed === null || typeof parsed !== 'object') {
+    return { ok: false, errorType: ET.UNKNOWN, errorCode: '', errorMessage: 'RunningHub 返回了无法识别的响应' }
+  }
+  // The endpoint answers `{ code, msg, data }`; code !== 0 is a refusal.
+  if (parsed.code !== undefined && parsed.code !== 0) {
+    const message = String(parsed.msg ?? 'Unknown error')
+    return {
+      ok: false,
+      errorType: classifyError(parsed.code, message),
+      errorCode: String(parsed.code),
+      errorMessage: message,
+    }
+  }
+  return { ok: true }
 }
 
 /**

@@ -173,6 +173,78 @@ window.__ModuleLoader__.load({
             create: () => ({ parse: value => value }),
           },
         },
+        {
+          id: 'media-runninghub#mediaRunningHub/poolStatus',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'poolStatus',
+          invocation: { kind: 'direct' },
+          parameters: [
+            {
+              name: 'input',
+              wire: 'input',
+              source: 'json',
+              codec: {
+                mode: 'strict',
+                typeSymbol: 'media-runninghub#mediaRunningHub/poolStatus:input',
+                create: () => ({ parse: value => value }),
+              },
+            },
+          ],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/poolStatus:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
+        {
+          id: 'media-runninghub#mediaRunningHub/poolCancel',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'poolCancel',
+          invocation: { kind: 'direct' },
+          parameters: [
+            {
+              name: 'cmd',
+              wire: 'cmd',
+              source: 'json',
+              codec: {
+                mode: 'strict',
+                typeSymbol: 'media-runninghub#mediaRunningHub/poolCancel:cmd',
+                create: () => ({ parse: value => value }),
+              },
+            },
+          ],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/poolCancel:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
+        {
+          id: 'media-runninghub#mediaRunningHub/poolResubmit',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'poolResubmit',
+          invocation: { kind: 'direct' },
+          parameters: [
+            {
+              name: 'cmd',
+              wire: 'cmd',
+              source: 'json',
+              codec: {
+                mode: 'strict',
+                typeSymbol: 'media-runninghub#mediaRunningHub/poolResubmit:cmd',
+                create: () => ({ parse: value => value }),
+              },
+            },
+          ],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/poolResubmit:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
       ],
     }
 
@@ -249,6 +321,50 @@ window.__ModuleLoader__.load({
         poolSaveFailed: '保存任务池设置失败：{message}',
         poolConcurrencyInvalid: '并发上限需为 1–100 的整数。',
         poolIntervalInvalid: '轮询间隔需为 5–600 的整数（秒）。',
+        cfgCollapse: '收起配置',
+        cfgExpand: '展开配置',
+        statusTitle: '任务池运行状态',
+        statusIntro: '任务池是全局共享的：任何会话提交的任务都在这里排队、流转和结算。当前批次与手动刷新保持一致。',
+        statusRefresh: '刷新',
+        statusRefreshing: '刷新中…',
+        statusAuto: '自动刷新',
+        statusAutoOn: '30s',
+        statusAutoOff: '关',
+        statusEmpty: '任务池为空，暂无任务。提交任务后，这里会实时显示进度与结果。',
+        statusLoadFailed: '读取任务池状态失败：{message}',
+        curBatch: '当前批次',
+        batchNone: '已排空',
+        batchLabel: '批次 #{id}',
+        countsInFlight: '在飞',
+        statusPending: '排队',
+        statusDispatched: '运行中',
+        statusSuccess: '成功',
+        statusFailed: '失败',
+        statusSubmitFailed: '提交失败',
+        statusCancelled: '已取消',
+        statusUnknown: '未知',
+        stType: '类型',
+        stId: '任务',
+        stStatus: '状态',
+        stCost: '费用',
+        stOutput: '产物',
+        stCreated: '创建时间',
+        stActions: '操作',
+        stNoCost: '—',
+        stNoOutput: '—',
+        stOutputOpen: '查看',
+        stReplay: '再次生成',
+        stCancel: '取消',
+        stReplaying: '重放中…',
+        stCancelling: '取消中…',
+        stReplayDone: '已重新加入任务 #{id}',
+        stReplayFailed: '重放失败：{message}',
+        stCancelDone: '已取消任务 #{id}',
+        stCancelFailed: '取消失败：{message}',
+        stPrev: '‹ 上一批',
+        stNext: '下一批 ›',
+        stCurBatchBtn: '回当前批次',
+        stBatchLoaded: '批次 #{id}',
       },
       en: {
         sectionLabel: 'RunningHub Media',
@@ -322,6 +438,50 @@ window.__ModuleLoader__.load({
         poolSaveFailed: 'Could not save task-pool settings: {message}',
         poolConcurrencyInvalid: 'Concurrency cap must be an integer from 1 to 100.',
         poolIntervalInvalid: 'Poll interval must be an integer from 5 to 600 seconds.',
+        cfgCollapse: 'Collapse config',
+        cfgExpand: 'Expand config',
+        statusTitle: 'Task pool status',
+        statusIntro: 'The task pool is shared globally: tasks submitted from any session queue, run and settle here.',
+        statusRefresh: 'Refresh',
+        statusRefreshing: 'Refreshing…',
+        statusAuto: 'Auto refresh',
+        statusAutoOn: '30s',
+        statusAutoOff: 'off',
+        statusEmpty: 'The task pool is empty. Submit tasks and their progress and results appear here in real time.',
+        statusLoadFailed: 'Could not read task pool status: {message}',
+        curBatch: 'Current batch',
+        batchNone: 'drained',
+        batchLabel: 'Batch #{id}',
+        countsInFlight: 'in flight',
+        statusPending: 'Queued',
+        statusDispatched: 'Running',
+        statusSuccess: 'Succeeded',
+        statusFailed: 'Failed',
+        statusSubmitFailed: 'Submit failed',
+        statusCancelled: 'Cancelled',
+        statusUnknown: 'Unknown',
+        stType: 'Type',
+        stId: 'Task',
+        stStatus: 'Status',
+        stCost: 'Cost',
+        stOutput: 'Output',
+        stCreated: 'Created',
+        stActions: 'Actions',
+        stNoCost: '—',
+        stNoOutput: '—',
+        stOutputOpen: 'View',
+        stReplay: 'Replay',
+        stCancel: 'Cancel',
+        stReplaying: 'Replaying…',
+        stCancelling: 'Cancelling…',
+        stReplayDone: 'Re-added task #{id}',
+        stReplayFailed: 'Replay failed: {message}',
+        stCancelDone: 'Cancelled task #{id}',
+        stCancelFailed: 'Cancel failed: {message}',
+        stPrev: '‹ Prev',
+        stNext: 'Next ›',
+        stCurBatchBtn: 'Current batch',
+        stBatchLoaded: 'Batch #{id}',
       },
     }
 
@@ -377,6 +537,38 @@ window.__ModuleLoader__.load({
 .media-rh-pool-field { display: flex; flex-direction: column; gap: 4px; }
 .media-rh-pool-label { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-primary); }
 .media-rh-pool-label .media-rh-pool-range { color: var(--dsw-alias-state-error-primary); }
+.media-rh-collapse { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; background: var(--dsw-alias-bg-layer-1); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 12px; cursor: pointer; }
+.media-rh-collapse-title { font-size: 14px; line-height: 22px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.media-rh-collapse-caret { font-size: 12px; color: var(--dsw-alias-label-secondary); transition: transform 0.15s ease; }
+.media-rh-collapse.is-open .media-rh-collapse-caret { transform: rotate(180deg); }
+.media-rh-collapse-body { margin-top: 8px; }
+.media-rh-status-wrap { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; background: var(--dsw-alias-bg-layer-1); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 12px; }
+.media-rh-status-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.media-rh-status-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.media-rh-auto { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.media-rh-auto-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; font-size: 12px; line-height: 18px; border-radius: 8px; cursor: pointer; color: var(--dsw-alias-label-secondary); border: 0.5px solid var(--dsw-alias-border-l2); background: transparent; }
+.media-rh-auto-chip:hover { background: var(--dsw-alias-bg-layer-2); }
+.media-rh-auto-chip.is-on { color: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); font-weight: 600; }
+.media-rh-counts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.media-rh-count { display: inline-flex; align-items: center; gap: 5px; }
+.media-rh-count b { font-weight: 600; color: var(--dsw-alias-label-primary); font-variant-numeric: tabular-nums; }
+.media-rh-count .media-rh-account-dot { width: 6px; height: 6px; }
+.media-rh-batch-nav { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.media-rh-batch-nav-btn { height: 24px; padding: 0 8px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); background: transparent; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 6px; cursor: pointer; }
+.media-rh-batch-nav-btn:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2); }
+.media-rh-batch-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.media-rh-table-wrap { overflow-x: auto; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
+.media-rh-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 18px; }
+.media-rh-table th { text-align: left; padding: 8px 10px; font-weight: 600; color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-layer-2); border-bottom: 0.5px solid var(--dsw-alias-border-l1); white-space: nowrap; }
+.media-rh-table td { padding: 8px 10px; color: var(--dsw-alias-label-primary); border-bottom: 0.5px solid var(--dsw-alias-border-l1); vertical-align: middle; }
+.media-rh-table tr:last-child td { border-bottom: none; }
+.media-rh-table .is-right { text-align: right; }
+.media-rh-type { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-rh-output-link { color: var(--dsw-alias-brand-primary); text-decoration: none; }
+.media-rh-output-link:hover { text-decoration: underline; }
+.media-rh-row-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.media-rh-row-msg { max-width: 200px; font-size: 12px; line-height: 16px; }
+.media-rh-status-tag { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 `
 
     /** Render an error thrown or rejected by a Remote call into one line. */
@@ -445,6 +637,40 @@ window.__ModuleLoader__.load({
       if (site === 'cn') return t('siteCn')
       if (site === 'intl') return t('siteIntl')
       return t('siteUnknown')
+    }
+
+    /** The display label of one ledger task status. */
+    function poolStatusLabel(t, status) {
+      switch (status) {
+        case 'PENDING': return t('statusPending')
+        case 'DISPATCHED': return t('statusDispatched')
+        case 'SUCCESS': return t('statusSuccess')
+        case 'FAILED': return t('statusFailed')
+        case 'SUBMIT_FAILED': return t('statusSubmitFailed')
+        case 'CANCELLED': return t('statusCancelled')
+        default: return t('statusUnknown')
+      }
+    }
+
+    /** Dot tone for one ledger task status. */
+    function poolStatusTone(status) {
+      if (status === 'SUCCESS') return 'ok'
+      if (status === 'PENDING' || status === 'DISPATCHED') return 'warn'
+      if (status === 'CANCELLED') return 'idle'
+      return 'error'
+    }
+
+    /** A short human cost summary from a ledger cost object. */
+    function formatCost(cost) {
+      if (cost === null || typeof cost !== 'object') return null
+      const parts = []
+      const coins = Number(cost.coins)
+      const money = Number(cost.money)
+      const third = Number(cost.thirdParty)
+      if (Number.isFinite(coins) && coins !== 0) parts.push(`${coins} RH`)
+      if (Number.isFinite(money) && money !== 0) parts.push(formatMoney(String(money), 'CNY'))
+      if (Number.isFinite(third) && third !== 0) parts.push(`¥${third.toFixed(2)}`)
+      return parts.length > 0 ? parts.join(' · ') : null
     }
 
     /** One account panel, bound to its own key. */
@@ -799,6 +1025,291 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /** The live task-pool dashboard: counts, batch navigation, and per-row actions. */
+    function PoolDashboard({ ctx, t }) {
+      const remote = ctx.get('remote.mediaRunningHub')
+      const [pool, setPool] = React.useState(null) // { status, currentBatchId, counts, tasks, allBatches }
+      const [viewBatch, setViewBatch] = React.useState(null) // null = current batch
+      const [loading, setLoading] = React.useState(false)
+      const [error, setError] = React.useState(null)
+      const [busyRow, setBusyRow] = React.useState(null) // { row, action } or null
+      const [rowMsg, setRowMsg] = React.useState(null) // { row, kind, text }
+      const [auto, setAuto] = React.useState(true)
+      const autoRef = React.useRef(true)
+      autoRef.current = auto
+      const loadSeq = React.useRef(0)
+
+      /**
+       * Load the pool status. With `target` set it loads that batch's detail
+       * (parsed costs + outputs); otherwise the current overview, then follows
+       * into the current batch's detail when the pool is non-empty.
+       */
+      const load = React.useCallback((target) => {
+        if (remote === undefined || typeof remote.poolStatus !== 'function') {
+          setError(t('acctUnavailable'))
+          return
+        }
+        const seq = ++loadSeq.current
+        setError(null)
+        setLoading(true)
+        remote.poolStatus(target > 0 ? { batchId: target } : {})
+          .then((response) => {
+            if (seq !== loadSeq.current) return
+            const value = unwrap(response, 'pool status was refused')
+            if (value === null || typeof value !== 'object' || value.status !== 'ok') {
+              setError(value && typeof value.message === 'string' ? value.message : '未知原因')
+              setLoading(false)
+              return
+            }
+            setPool(value)
+            const current = Number(value.currentBatchId) || 0
+            const desired = target > 0 ? target : current
+            if (desired > 0) {
+              const hasDetail = Array.isArray(value.tasks) && value.tasks.some((task) => Array.isArray(task.outputs))
+              if (!hasDetail) {
+                setViewBatch(desired)
+                remote.poolStatus({ batchId: desired }).then((r2) => {
+                  if (seq !== loadSeq.current) return
+                  const d = unwrap(r2, 'batch detail was refused')
+                  if (d !== null && typeof d === 'object' && d.status === 'ok') setPool(d)
+                  setLoading(false)
+                }).catch((err) => { if (seq === loadSeq.current) { setError(messageOf(err)); setLoading(false) } })
+                return
+              }
+            }
+            setLoading(false)
+          })
+          .catch((err) => {
+            if (seq !== loadSeq.current) return
+            setError(messageOf(err))
+            setLoading(false)
+          })
+      }, [remote])
+
+      const refresh = React.useCallback(() => load(viewBatch === null ? undefined : viewBatch), [load, viewBatch])
+
+      React.useEffect(() => {
+        load()
+        const id = setInterval(() => { if (autoRef.current) refresh() }, 30000)
+        return () => clearInterval(id)
+      }, [load, refresh])
+
+      const allBatches = (pool && Array.isArray(pool.allBatches)) ? pool.allBatches : []
+      const currentBatch = (pool && Number(pool.currentBatchId)) || 0
+      const shownBatch = viewBatch !== null && viewBatch !== undefined ? viewBatch : currentBatch
+      const index = allBatches.indexOf(Number(shownBatch))
+      const hasPrev = index >= 0 && index < allBatches.length - 1
+      const hasNext = index > 0
+      const counts = (pool && pool.counts) || {}
+      const tasks = (pool && Array.isArray(pool.tasks)) ? pool.tasks : []
+      const isViewingCurrent = currentBatch > 0 && Number(shownBatch) === currentBatch
+
+      const gotoBatch = (batchId) => {
+        if (batchId === null || batchId === undefined) return
+        setViewBatch(Number(batchId))
+        load(Number(batchId))
+      }
+      const gotoPrev = () => { if (hasPrev) gotoBatch(allBatches[index + 1]) }
+      const gotoNext = () => { if (hasNext) gotoBatch(allBatches[index - 1]) }
+      const gotoCurrent = () => {
+        if (currentBatch > 0) { setViewBatch(currentBatch); load(currentBatch) }
+        else { setViewBatch(null); load(undefined) }
+      }
+
+      /**
+       * Replay one task verbatim. Only terminal rows offer it, so no confirm.
+       */
+      const replay = (row) => {
+        if (busyRow !== null || remote === undefined || typeof remote.poolResubmit !== 'function') return
+        setBusyRow({ row: row.id, action: 'replay' })
+        setRowMsg(null)
+        remote.poolResubmit({ rowId: row.id })
+          .then((response) => {
+            const value = unwrap(response, 'replay was refused')
+            if (value === null || typeof value !== 'object' || value.status !== 'ok') {
+              const message = value && typeof value.message === 'string' ? value.message : '未知原因'
+              setRowMsg({ row: row.id, kind: 'error', text: t('stReplayFailed', { message }) })
+              return
+            }
+            setRowMsg({ row: row.id, kind: 'ok', text: t('stReplayDone', { id: value.newRowId }) })
+            refresh()
+          })
+          .catch((err) => setRowMsg({ row: row.id, kind: 'error', text: t('stReplayFailed', { message: messageOf(err) }) }))
+          .then(() => setBusyRow(null))
+      }
+
+      /**
+       * Cancel one task. Destructive (stops a running job), so confirm first.
+       */
+      const cancelRow = (row) => {
+        if (busyRow !== null || remote === undefined || typeof remote.poolCancel !== 'function') return
+        if (!window.confirm(t('statusTitle') + '\n' + t('stCancel') + ' #' + row.id + '?')) return
+        setBusyRow({ row: row.id, action: 'cancel' })
+        setRowMsg(null)
+        remote.poolCancel({ rowId: row.id })
+          .then((response) => {
+            const value = unwrap(response, 'cancel was refused')
+            if (value === null || typeof value !== 'object' || value.status !== 'ok') {
+              const message = value && typeof value.message === 'string' ? value.message : '未知原因'
+              setRowMsg({ row: row.id, kind: 'error', text: t('stCancelFailed', { message }) })
+              return
+            }
+            setRowMsg({ row: row.id, kind: 'ok', text: t('stCancelDone', { id: row.id }) })
+            refresh()
+          })
+          .catch((err) => setRowMsg({ row: row.id, kind: 'error', text: t('stCancelFailed', { message: messageOf(err) }) }))
+          .then(() => setBusyRow(null))
+      }
+
+      const cancelable = (status) => status === 'PENDING' || status === 'DISPATCHED'
+      const replayable = (status) => status === 'SUCCESS' || status === 'FAILED' || status === 'SUBMIT_FAILED' || status === 'CANCELLED'
+
+      const countChip = (status, label) => h('span', { className: 'media-rh-count' },
+        h('span', { className: 'media-rh-account-dot is-' + poolStatusTone(status), 'aria-hidden': 'true' }),
+        label, ' ', h('b', null, Number(counts[status]) || 0))
+
+      return h('div', { className: 'media-rh-status-wrap' },
+        h('div', { className: 'media-rh-status-head' },
+          h('span', { className: 'media-rh-account-title' }, t('statusTitle')),
+          h('div', { className: 'media-rh-status-toolbar' },
+            h('span', { className: 'media-rh-auto' },
+              t('statusAuto'),
+              h('button', {
+                type: 'button',
+                className: 'media-rh-auto-chip' + (auto ? ' is-on' : ''),
+                'aria-pressed': auto ? 'true' : 'false',
+                onClick: () => setAuto(a => !a),
+                title: auto ? t('statusAutoOn') : t('statusAutoOff'),
+              }, auto ? t('statusAutoOn') : t('statusAutoOff'))
+            ),
+            h('button', {
+              type: 'button',
+              className: 'media-rh-btn',
+              disabled: loading,
+              onClick: refresh,
+            }, loading ? t('statusRefreshing') : t('statusRefresh'))
+          )
+        ),
+        error !== null
+          ? h('p', { className: 'media-rh-error', role: 'alert' }, t('statusLoadFailed', { message: error }))
+          : null,
+        pool === null && loading
+          ? h('p', { className: 'media-rh-muted' }, t('acctLoading'))
+          : null,
+        pool === null || tasks.length === 0
+          ? h('p', { className: 'media-rh-muted' }, t('statusEmpty'))
+          : h(React.Fragment, null,
+              h('div', { className: 'media-rh-counts' },
+                countChip('DISPATCHED', t('statusDispatched')),
+                countChip('PENDING', t('statusPending')),
+                countChip('SUCCESS', t('statusSuccess')),
+                countChip('FAILED', t('statusFailed')),
+                countChip('SUBMIT_FAILED', t('statusSubmitFailed')),
+                countChip('CANCELLED', t('statusCancelled')),
+                h('span', { className: 'media-rh-count' }, t('curBatch'), ' ',
+                  h('b', null, currentBatch > 0 ? '#' + currentBatch : t('batchNone')))
+              ),
+              h('div', { className: 'media-rh-batch-nav' },
+                h('button', {
+                  type: 'button',
+                  className: 'media-rh-batch-nav-btn',
+                  disabled: !hasPrev || loading,
+                  onClick: gotoPrev,
+                }, t('stPrev')),
+                h('span', null,
+                  shownBatch > 0 ? t('stBatchLoaded', { id: shownBatch }) : t('batchNone')),
+                h('button', {
+                  type: 'button',
+                  className: 'media-rh-batch-nav-btn',
+                  disabled: !hasNext || loading,
+                  onClick: gotoNext,
+                }, t('stNext')),
+                !isViewingCurrent
+                  ? h('button', {
+                      type: 'button',
+                      className: 'media-rh-batch-nav-btn',
+                      disabled: loading,
+                      onClick: gotoCurrent,
+                    }, t('stCurBatchBtn'))
+                  : null
+              ),
+              h('div', { className: 'media-rh-table-wrap' },
+                h('table', { className: 'media-rh-table' },
+                  h('thead', null,
+                    h('tr', null,
+                      h('th', null, t('stType')),
+                      h('th', null, t('stId')),
+                      h('th', null, t('stStatus')),
+                      h('th', { className: 'is-right' }, t('stCost')),
+                      h('th', null, t('stOutput')),
+                      h('th', null, t('stCreated')),
+                      h('th', null, t('stActions'))
+                    )
+                  ),
+                  h('tbody', null, tasks.map((row) => {
+                    const status = row.status || 'PENDING'
+                    const costText = formatCost(row.costs)
+                    const outputs = Array.isArray(row.outputs) ? row.outputs : []
+                    const firstOut = outputs.find((o) => o && o.ok === true && (o.path || o.url))
+                    const outLink = firstOut
+                      ? h('a', {
+                          className: 'media-rh-output-link',
+                          href: firstOut.path || firstOut.url,
+                          target: firstOut.path ? '_self' : '_blank',
+                          rel: 'noreferrer',
+                          onClick: firstOut.path ? (event) => event.preventDefault() : undefined,
+                          title: firstOut.path || firstOut.url,
+                        }, t('stOutputOpen'))
+                      : (outputs.length > 0 ? h('span', { className: 'media-rh-muted' }, t('stNoOutput')) : h('span', { className: 'media-rh-muted' }, t('stNoOutput')))
+                    const timeText = Number(row.created_at) > 0
+                      ? new Date(Number(row.created_at)).toLocaleString()
+                      : t('stNoOutput')
+                    const busy = busyRow !== null && busyRow.row === row.id
+                    const busyType = busy ? busyRow.action : null
+                    const msg = (rowMsg !== null && rowMsg.row === row.id) ? rowMsg : null
+                    return h('tr', { key: String(row.id) },
+                      h('td', { className: 'media-rh-type', title: row.type_id }, row.type_id || t('statusUnknown')),
+                      h('td', null, '#' + row.id),
+                      h('td', null,
+                        h('span', { className: 'media-rh-status-tag' },
+                          h('span', { className: 'media-rh-account-dot is-' + poolStatusTone(status), 'aria-hidden': 'true' }),
+                          poolStatusLabel(t, status)
+                        )
+                      ),
+                      h('td', { className: 'is-right' }, costText !== null ? costText : h('span', { className: 'media-rh-muted' }, t('stNoCost'))),
+                      h('td', null, outLink),
+                      h('td', null, timeText),
+                      h('td', null,
+                        h('span', { className: 'media-rh-row-actions' },
+                          replayable(status)
+                            ? h('button', {
+                                type: 'button',
+                                className: 'media-rh-btn is-primary',
+                                disabled: busy,
+                                onClick: () => replay(row),
+                              }, busyType === 'replay' ? t('stReplaying') : t('stReplay'))
+                            : null,
+                          cancelable(status)
+                            ? h('button', {
+                                type: 'button',
+                                className: 'media-rh-btn is-danger',
+                                disabled: busy,
+                                onClick: () => cancelRow(row),
+                              }, busyType === 'cancel' ? t('stCancelling') : t('stCancel'))
+                            : null
+                        ),
+                        msg !== null
+                          ? h('span', { className: 'media-rh-row-msg ' + (msg.kind === 'ok' ? 'is-ok' : 'is-error'), role: msg.kind === 'ok' ? 'status' : 'alert' }, msg.text)
+                          : null
+                      )
+                    )
+                  }))
+                )
+              )
+            )
+      )
+    }
+
     /** The Settings page registered under `settings.section`. */
     function MediaRunningHubPage({ ctx }) {
       const locale = ctx.get('locale')
@@ -810,6 +1321,7 @@ window.__ModuleLoader__.load({
       const [surface, setSurface] = React.useState('sync')
       const [cfg, setCfg] = React.useState(null)
       const [cfgMessage, setCfgMessage] = React.useState(null)
+      const [collapsed, setCollapsed] = React.useState(true)
 
       const [sync, setSync] = React.useState({ status: null, loading: false, error: null })
       const [jobs, setJobs] = React.useState({ status: null, loading: false, error: null })
@@ -971,50 +1483,66 @@ window.__ModuleLoader__.load({
         h('style', null, CSS),
         h('h2', null, t('title')),
         h('p', { className: 'media-rh-intro' }, t('intro')),
-        h('div', { className: 'media-rh-surface', role: 'group', 'aria-label': t('surfaceToggleLabel') },
-          h('button', {
-            type: 'button',
-            className: 'media-rh-surface-btn' + (surface !== 'jobs' ? ' is-active' : ''),
-            'aria-pressed': surface !== 'jobs',
-            onClick: () => { if (surface !== 'sync') applySurface('sync') },
-          }, t('surfaceSync')),
-          h('button', {
-            type: 'button',
-            className: 'media-rh-surface-btn' + (surface === 'jobs' ? ' is-active' : ''),
-            'aria-pressed': surface === 'jobs',
-            onClick: () => { if (surface !== 'jobs') applySurface('jobs') },
-          }, t('surfaceJobs'))
+        h('div', {
+          className: 'media-rh-collapse' + (collapsed ? '' : ' is-open'),
+          role: 'button',
+          tabIndex: 0,
+          'aria-expanded': collapsed ? 'false' : 'true',
+          onClick: () => setCollapsed(c => !c),
+          onKeyDown: (event) => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCollapsed(c => !c) }
+          },
+        },
+          h('span', { className: 'media-rh-collapse-title' }, collapsed ? t('cfgExpand') : t('cfgCollapse')),
+          h('span', { className: 'media-rh-collapse-caret', 'aria-hidden': 'true' }, collapsed ? '▸' : '▾')
         ),
-        cfgMessage !== null
-          ? h('p', { className: 'media-rh-msg ' + (cfgMessage.kind === 'ok' ? 'is-ok' : 'is-error'), role: cfgMessage.kind === 'ok' ? 'status' : 'alert' }, cfgMessage.text)
-          : null,
-        loadError !== null
-          ? h('p', { className: 'media-rh-error', role: 'alert' }, t('loadFailed', { message: loadError }))
-          : null,
-        infos === null
-          ? h('p', { className: 'media-rh-muted' }, t('loading'))
-          : KEYS.filter(entry => entry.surface === surface).map(entry => {
-              const panel = panelFor(entry)
-              return h(KeyCard, {
-                key: entry.ref,
-                ctx,
-                t,
-                entry,
-                info: infos[entry.ref],
-                load,
-                onChanged: panel.onRefresh,
-                status: panel.status,
-                loading: panel.loading,
-                error: panel.error,
-                onRefresh: panel.onRefresh,
-                active: entry.surface === surface,
-                surfaceName,
-                judge,
-                surfaceRunning: surface,
-                cfg,
-                applyPoolFields,
+        collapsed ? null : h('div', { className: 'media-rh-collapse-body' },
+          cfgMessage !== null
+            ? h('p', { className: 'media-rh-msg ' + (cfgMessage.kind === 'ok' ? 'is-ok' : 'is-error'), role: cfgMessage.kind === 'ok' ? 'status' : 'alert' }, cfgMessage.text)
+            : null,
+          loadError !== null
+            ? h('p', { className: 'media-rh-error', role: 'alert' }, t('loadFailed', { message: loadError }))
+            : null,
+          h('div', { className: 'media-rh-surface', role: 'group', 'aria-label': t('surfaceToggleLabel') },
+            h('button', {
+              type: 'button',
+              className: 'media-rh-surface-btn' + (surface !== 'jobs' ? ' is-active' : ''),
+              'aria-pressed': surface !== 'jobs',
+              onClick: () => { if (surface !== 'sync') applySurface('sync') },
+            }, t('surfaceSync')),
+            h('button', {
+              type: 'button',
+              className: 'media-rh-surface-btn' + (surface === 'jobs' ? ' is-active' : ''),
+              'aria-pressed': surface === 'jobs',
+              onClick: () => { if (surface !== 'jobs') applySurface('jobs') },
+            }, t('surfaceJobs'))
+          ),
+          infos === null
+            ? h('p', { className: 'media-rh-muted' }, t('loading'))
+            : KEYS.filter(entry => entry.surface === surface).map(entry => {
+                const panel = panelFor(entry)
+                return h(KeyCard, {
+                  key: entry.ref,
+                  ctx,
+                  t,
+                  entry,
+                  info: infos[entry.ref],
+                  load,
+                  onChanged: panel.onRefresh,
+                  status: panel.status,
+                  loading: panel.loading,
+                  error: panel.error,
+                  onRefresh: panel.onRefresh,
+                  active: entry.surface === surface,
+                  surfaceName,
+                  judge,
+                  surfaceRunning: surface,
+                  cfg,
+                  applyPoolFields,
+                })
               })
-            })
+        ),
+        h(PoolDashboard, { ctx, t })
       )
     }
 
