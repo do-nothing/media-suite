@@ -68,7 +68,7 @@ export const Config = Schema.object({
     .description('sync Key 所属站点：cn 为中国站，intl 为国际站。保存 Key 时按余额币种自动判定。'),
   jobsSite: Schema.union(['cn', 'intl']).default('cn').volatile()
     .description('jobs Key 所属站点：cn 为中国站，intl 为国际站。保存 Key 时按余额币种自动判定。'),
-  concurrency: Schema.number().step(1).min(1).max(20).default(2)
+  concurrency: Schema.number().step(1).min(1).max(100).default(2)
     .description('任务池的全局并发上限：同时在飞的 RunningHub 任务数。'),
   defaultInstanceType: Schema.string().default('default')
     .description('任务池默认实例类型；任务类型未单独固定 instanceType 时生效（如 "default" / "plus"）。'),
@@ -290,6 +290,20 @@ function registerController(ctx) {
     }
   }
 
+  /** Write one Config value through the settings service (logs on failure). */
+  const writeConfig = async (patch, message) => {
+    const settings = ctx.get('settings')
+    if (settings === undefined) {
+      return { ok: false, status: 'error', message: '设置服务不可用' }
+    }
+    try {
+      await settings.update(NAMESPACE, patch)
+      return { ok: true, status: 'ok', message: undefined }
+    } catch (error) {
+      return { ok: false, status: 'error', message: `${message}：${error?.message ?? '未知原因'}` }
+    }
+  }
+
   const prototype = {
     async syncStatus() {
       const credentials = ctx.get('credentials')
@@ -307,6 +321,36 @@ function registerController(ctx) {
     async jobsSite() {
       return judgeSite(ctx, JOBS_REF, 'jobsSite', contextOf('jobsSite'))
     },
+    async configStatus() {
+      const live = ctx.fiber.config ?? {}
+      return {
+        status: 'ok',
+        surface: live.surface === 'jobs' ? 'jobs' : 'sync',
+        concurrency: typeof live.concurrency === 'number' ? live.concurrency : 2,
+        pollIntervalSeconds: typeof live.pollIntervalSeconds === 'number' ? live.pollIntervalSeconds : 30,
+        syncSite: siteOf(live, 'syncSite') ?? 'cn',
+        jobsSite: siteOf(live, 'jobsSite') ?? 'cn',
+      }
+    },
+    async setSurface(target) {
+      const surface = target === 'sync' ? 'sync' : 'jobs'
+      const wrote = await writeConfig({ surface }, '切换 surface 失败')
+      return wrote.ok
+        ? { status: 'ok', surface, message: undefined }
+        : { status: 'error', surface: contextOf('syncSite').surface, message: wrote.message }
+    },
+    async setPoolFields(fields) {
+      const patch = {}
+      if (typeof fields?.concurrency === 'number') patch.concurrency = fields.concurrency
+      if (typeof fields?.pollIntervalSeconds === 'number') patch.pollIntervalSeconds = fields.pollIntervalSeconds
+      if (Object.keys(patch).length === 0) return { status: 'error', message: '没有可写入的字段' }
+      // Writing an ordinary Config field reloads the plugin; the live surface
+      // context is read before the write so the reply is still meaningful.
+      const wrote = await writeConfig(patch, '保存任务池设置失败')
+      return wrote.ok
+        ? { status: 'ok', message: undefined }
+        : { status: 'error', message: wrote.message }
+    },
   }
   Object.defineProperty(prototype, REMOTE_METHODS_KEY, {
     value: {
@@ -316,6 +360,9 @@ function registerController(ctx) {
         { method: 'jobsStatus', invocation: { kind: 'direct' } },
         { method: 'syncSite', invocation: { kind: 'direct' } },
         { method: 'jobsSite', invocation: { kind: 'direct' } },
+        { method: 'configStatus', invocation: { kind: 'direct' } },
+        { method: 'setSurface', invocation: { kind: 'direct' } },
+        { method: 'setPoolFields', invocation: { kind: 'direct' } },
       ],
     },
     configurable: true,

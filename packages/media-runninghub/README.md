@@ -89,21 +89,24 @@ RunningHub 有两个站：中国站 `www.runninghub.cn` 和国际站 `www.runnin
 
 **设置 → RunningHub 媒体**
 
+- 顶部 `surface` 分段切换（`sync` / `jobs`），切换即重载插件并重注册对应工具
 - sync Key 卡 + 账户状态 + 站点判定结果
 - jobs Key 卡 + 账户状态 + 站点判定结果
+- jobs 卡内「任务池设置」区（仅 `surface === jobs` 时可编辑）：
+  `concurrency`（全局并发上限）、`pollIntervalSeconds`（轮询间隔，秒）
 
 ## 配置项
 
 | 配置 | 默认 | 说明 |
 |---|---|---|
-| `surface` | `sync` | 注册哪套工具。改它会重载插件 |
+| `surface` | `sync` | 注册哪套工具。改它重载插件，可在设置页顶部分段切换 |
 | `channel` | `lowprice` | Nano Banana 2 渠道 |
 | `syncSite` | `cn` | sync Key 所属站点，保存 Key 时自动判定 |
 | `jobsSite` | `cn` | jobs Key 所属站点，保存 Key 时自动判定 |
+| `concurrency` | `2` | 任务池全局并发上限（1–100），仅 `jobs` 模式生效 |
+| `pollIntervalSeconds` | `30` | 任务池轮询间隔（5–600 秒），仅 `jobs` 模式生效 |
 
 `syncSite` / `jobsSite` 是 volatile 字段：写入只更新运行中的值，不会重载插件，工具列表保持稳定。
-
-`jobs` 实现后会补充 `concurrency`、`defaultInstanceType`、`pollIntervalSeconds`，并只在 `jobs` 模式下显示。
 
 ## 安装
 

@@ -112,6 +112,59 @@ window.__ModuleLoader__.load({
             create: () => ({ parse: value => value }),
           },
         },
+        {
+          id: 'media-runninghub#mediaRunningHub/configStatus',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'configStatus',
+          invocation: { kind: 'direct' },
+          parameters: [],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/configStatus:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
+        {
+          id: 'media-runninghub#mediaRunningHub/setSurface',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'setSurface',
+          invocation: { kind: 'direct' },
+          parameters: [
+            {
+              name: 'target',
+              wire: 'target',
+              source: 'json',
+              codec: { mode: 'src-json' },
+            },
+          ],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/setSurface:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
+        {
+          id: 'media-runninghub#mediaRunningHub/setPoolFields',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'setPoolFields',
+          invocation: { kind: 'direct' },
+          parameters: [
+            {
+              name: 'fields',
+              wire: 'fields',
+              source: 'json',
+              codec: { mode: 'src-json' },
+            },
+          ],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/setPoolFields:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
       ],
     }
 
@@ -176,6 +229,18 @@ window.__ModuleLoader__.load({
         acctInvalidDetail: 'RunningHub 拒绝了该 Key：{message}',
         acctNoBalanceHint: '余额为零，请充值后再使用。',
         acctRequestFailed: '查询账户状态失败：{message}',
+        surfaceToggleLabel: '运行模式',
+        poolTitle: '任务池设置',
+        poolConcurrencyLabel: '全局并发上限',
+        poolIntervalLabel: '轮询间隔（秒）',
+        poolRange: '（需在 {min}–{max} 内）',
+        poolHint: '当前为 {surface}，任务池字段仅在 jobs 模式可编辑。',
+        poolSave: '保存任务池设置',
+        poolSaving: '保存中…',
+        poolSaved: '任务池设置已保存',
+        poolSaveFailed: '保存任务池设置失败：{message}',
+        poolConcurrencyInvalid: '并发上限需为 1–100 的整数。',
+        poolIntervalInvalid: '轮询间隔需为 5–600 的整数（秒）。',
       },
       en: {
         sectionLabel: 'RunningHub Media',
@@ -237,6 +302,18 @@ window.__ModuleLoader__.load({
         acctInvalidDetail: 'RunningHub rejected this key: {message}',
         acctNoBalanceHint: 'The wallet balance is zero; recharge before using the API.',
         acctRequestFailed: 'Could not check account status: {message}',
+        surfaceToggleLabel: 'Running surface',
+        poolTitle: 'Task pool settings',
+        poolConcurrencyLabel: 'Global concurrency cap',
+        poolIntervalLabel: 'Poll interval (seconds)',
+        poolRange: ' (must be {min}–{max})',
+        poolHint: 'The running surface is {surface}; task-pool fields are editable only in jobs mode.',
+        poolSave: 'Save pool settings',
+        poolSaving: 'Saving…',
+        poolSaved: 'Task-pool settings saved',
+        poolSaveFailed: 'Could not save task-pool settings: {message}',
+        poolConcurrencyInvalid: 'Concurrency cap must be an integer from 1 to 100.',
+        poolIntervalInvalid: 'Poll interval must be an integer from 5 to 600 seconds.',
       },
     }
 
@@ -282,6 +359,16 @@ window.__ModuleLoader__.load({
 .media-rh-account-balance { font-size: 20px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .media-rh-account-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .media-rh-account-error { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-state-error-primary); }
+.media-rh-surface { display: inline-flex; align-items: center; align-self: flex-start; padding: 2px; gap: 2px; background: var(--dsw-alias-bg-layer-1); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
+.media-rh-surface-btn { height: 26px; padding: 0 14px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); background: transparent; border: none; border-radius: 8px; cursor: pointer; }
+.media-rh-surface-btn:hover:not(.is-active) { color: var(--dsw-alias-label-primary); }
+.media-rh-surface-btn.is-active { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); font-weight: 600; box-shadow: 0 0 0 0.5px var(--dsw-alias-border-l2); }
+.media-rh-input.is-invalid { border-color: var(--dsw-alias-state-error-primary); }
+.media-rh-pool { display: flex; flex-direction: column; gap: 8px; padding: 12px; margin-top: 2px; background: var(--dsw-alias-bg-layer-2); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
+.media-rh-pool-head { font-size: 12px; line-height: 18px; font-weight: 600; letter-spacing: 0.04em; color: var(--dsw-alias-label-secondary); text-transform: uppercase; }
+.media-rh-pool-field { display: flex; flex-direction: column; gap: 4px; }
+.media-rh-pool-label { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-primary); }
+.media-rh-pool-label .media-rh-pool-range { color: var(--dsw-alias-state-error-primary); }
 `
 
     /** Render an error thrown or rejected by a Remote call into one line. */
@@ -448,12 +535,22 @@ window.__ModuleLoader__.load({
     }
 
     /** One key card with its own account panel. */
-    function KeyCard({ ctx, t, entry, info, load, onChanged, status, loading, error, onRefresh, active, surfaceName, judge }) {
+    function KeyCard({ ctx, t, entry, info, load, onChanged, status, loading, error, onRefresh, active, surfaceName, judge, surfaceRunning, cfg, applyPoolFields }) {
       const ref = entry.ref
       const [draft, setDraft] = React.useState('')
       const [busy, setBusy] = React.useState(null)
       const [message, setMessage] = React.useState(null)
       const [judged, setJudged] = React.useState(null)
+      // Jobs-pool field drafts, initialized lazily from the shared config.
+      const [pool, setPool] = React.useState(null)
+      const [poolUpdating, setPoolUpdating] = React.useState(false)
+      const poolTouched = React.useRef(false)
+      if (pool === null && cfg !== null && entry.surface === 'jobs' && !poolTouched.current) {
+        setPool({
+          concurrency: String(cfg.concurrency === undefined ? 2 : cfg.concurrency),
+          pollIntervalSeconds: String(cfg.pollIntervalSeconds === undefined ? 30 : cfg.pollIntervalSeconds),
+        })
+      }
       const configured = info !== undefined && info.configured === true
       const managed = configured && info.source === 'file'
       const writable = info === undefined || info.writable !== false
@@ -539,6 +636,34 @@ window.__ModuleLoader__.load({
           })
       }
 
+      /**
+       * Save the jobs-pool fields, gated to the jobs surface.
+       *
+       * Only a running jobs surface reads these fields; in sync mode the input
+       * is disabled and nothing can be written.
+       */
+      const savePool = () => {
+        if (pool === null || typeof applyPoolFields !== 'function') return
+        const concurrency = Number.parseFloat(pool.concurrency)
+        const pollIntervalSeconds = Number.parseFloat(pool.pollIntervalSeconds)
+        if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 100) {
+          setMessage({ kind: 'error', text: t('poolConcurrencyInvalid') })
+          return
+        }
+        if (!Number.isInteger(pollIntervalSeconds) || pollIntervalSeconds < 5 || pollIntervalSeconds > 600) {
+          setMessage({ kind: 'error', text: t('poolIntervalInvalid') })
+          return
+        }
+        poolTouched.current = true
+        setPoolUpdating(true)
+        setMessage(null)
+        Promise.resolve()
+          .then(() => applyPoolFields({ concurrency, pollIntervalSeconds }))
+          .then(() => report('ok', t('poolSaved')))
+          .catch((err) => report('error', t('poolSaveFailed', { message: messageOf(err) })))
+          .then(() => setPoolUpdating(false))
+      }
+
       // The site shown is the one this session judged, falling back to the
       // verdict the Host already stores in the plugin Config.
       const storedSite = status !== null && typeof status === 'object' && typeof status.site === 'string'
@@ -556,6 +681,57 @@ window.__ModuleLoader__.load({
         : storedSite !== undefined
           ? h('p', { className: 'media-rh-muted' }, t('siteLabel') + '：' + siteLabel(t, storedSite))
           : h('p', { className: 'media-rh-muted' }, t('sitePending'))
+
+      /**
+       * The jobs-mode pool settings section.
+       *
+       * Only a running jobs surface reads concurrency and pollIntervalSeconds,
+       * so the inputs are editable only then and disabled (with a hint) in sync
+       * mode.
+       */
+      const renderPoolSection = () => {
+        const jobsRunning = surfaceRunning !== 'jobs'
+        const poolField = (field, labelKey, invalid, min, max) => h('div', { className: 'media-rh-pool-field' },
+          h('label', { className: 'media-rh-pool-label', htmlFor: 'media-rh-pool-' + field },
+            t(labelKey), invalid && pool !== null ? t('poolRange', { min, max }) : null),
+          h('input', {
+            id: 'media-rh-pool-' + field,
+            className: 'media-rh-input' + (invalid ? ' is-invalid' : ''),
+            type: 'number',
+            min: String(min),
+            max: String(max),
+            step: '1',
+            spellCheck: false,
+            disabled: jobsRunning || poolUpdating,
+            readOnly: jobsRunning,
+            value: pool === null ? '' : pool[field],
+            placeholder: field === 'concurrency'
+              ? String(cfg === null ? 2 : (cfg.concurrency === undefined ? 2 : cfg.concurrency))
+              : String(cfg === null ? 30 : (cfg.pollIntervalSeconds === undefined ? 30 : cfg.pollIntervalSeconds)),
+            onChange: (event) => { poolTouched.current = true; setPool(prev => ({ ...prev, [field]: event.target.value })) },
+          })
+        )
+
+        const concurrencyNum = pool === null ? NaN : Number.parseFloat(pool.concurrency)
+        const intervalNum = pool === null ? NaN : Number.parseFloat(pool.pollIntervalSeconds)
+        const concurrencyInvalid = !Number.isInteger(concurrencyNum) || concurrencyNum < 1 || concurrencyNum > 100
+        const intervalInvalid = !Number.isInteger(intervalNum) || intervalNum < 5 || intervalNum > 600
+
+        return h('div', { className: 'media-rh-pool' },
+          h('div', { className: 'media-rh-pool-head' }, t('poolTitle')),
+          !jobsRunning ? null : h('p', { className: 'media-rh-muted' }, t('poolHint', { surface: surfaceName })),
+          poolField('concurrency', 'poolConcurrencyLabel', concurrencyInvalid, 1, 100),
+          poolField('pollIntervalSeconds', 'poolIntervalLabel', intervalInvalid, 5, 600),
+          h('div', { className: 'media-rh-actions' },
+            h('button', {
+              type: 'button',
+              className: 'media-rh-btn is-primary',
+              disabled: jobsRunning || poolUpdating || pool === null || concurrencyInvalid || intervalInvalid,
+              onClick: savePool,
+            }, poolUpdating ? t('poolSaving') : t('poolSave'))
+          )
+        )
+      }
 
       return h('div', { className: 'media-rh-card' + (active ? '' : ' is-inactive') },
         h('div', { className: 'media-rh-card-head' },
@@ -610,7 +786,8 @@ window.__ModuleLoader__.load({
         !writable ? h('p', { className: 'media-rh-muted' }, t('readonlyNote')) : null,
         !active ? h('p', { className: 'media-rh-muted' }, t('inactiveNote', { surface: surfaceName })) : null,
         siteLine,
-        h(AccountPanel, { t, status, loading, error, onRefresh: refreshAndJudge })
+        h(AccountPanel, { t, status, loading, error, onRefresh: refreshAndJudge }),
+        entry.surface === 'jobs' ? renderPoolSection() : null
       )
     }
 
@@ -623,6 +800,8 @@ window.__ModuleLoader__.load({
       const [infos, setInfos] = React.useState(null)
       const [loadError, setLoadError] = React.useState(null)
       const [surface, setSurface] = React.useState('sync')
+      const [cfg, setCfg] = React.useState(null)
+      const [cfgMessage, setCfgMessage] = React.useState(null)
 
       const [sync, setSync] = React.useState({ status: null, loading: false, error: null })
       const [jobs, setJobs] = React.useState({ status: null, loading: false, error: null })
@@ -636,6 +815,26 @@ window.__ModuleLoader__.load({
             setLoadError(null)
           })
           .catch((err) => setLoadError(messageOf(err)))
+      }, [])
+
+      /**
+       * Read the pool-oriented Config values the page can edit.
+       *
+       * The Host reports the running surface and the current pool fields, so
+       * the page can show their values and gate editability on the surface.
+       */
+      const loadConfig = React.useCallback(() => {
+        const remote = ctx.get('remote.mediaRunningHub')
+        if (remote === undefined || typeof remote.configStatus !== 'function') return
+        remote.configStatus()
+          .then((response) => {
+            const value = unwrap(response, 'config status was refused')
+            if (value !== null && typeof value === 'object') {
+              if (typeof value.surface === 'string') setSurface(value.surface)
+              setCfg(value)
+            }
+          })
+          .catch(() => { /* keep the last-known config; the page stays usable */ })
       }, [])
 
       const refreshOne = React.useCallback((which) => {
@@ -691,11 +890,65 @@ window.__ModuleLoader__.load({
         })
       }, [])
 
+      /**
+       * Switch the running surface.
+       *
+       * `surface` is an ordinary Config field, so writing it reloads the
+       * plugin and re-registers the tools of the new surface. The page updates
+       * optimistically; the load after the write refreshes config and status.
+       */
+      const applySurface = React.useCallback((target) => {
+        const next = target === 'sync' ? 'sync' : 'jobs'
+        const remote = ctx.get('remote.mediaRunningHub')
+        if (remote === undefined || typeof remote.setSurface !== 'function') {
+          setCfgMessage({ kind: 'error', text: t('acctUnavailable') })
+          return Promise.resolve()
+        }
+        setCfgMessage(null)
+        return remote.setSurface(next)
+          .then((response) => {
+            const value = unwrap(response, 'surface switch was refused')
+            if (value === null || typeof value !== 'object' || value.status !== 'ok') {
+              const message = value && typeof value.message === 'string' ? value.message : '未知原因'
+              throw new Error(message)
+            }
+            setSurface(value.surface === 'jobs' ? 'jobs' : 'sync')
+            return loadConfig().then(refreshSync).then(refreshJobs)
+          })
+          .catch((err) => setCfgMessage({ kind: 'error', text: messageOf(err) }))
+      }, [loadConfig, refreshSync, refreshJobs])
+
+      /**
+       * Persist the jobs-mode pool fields.
+       *
+       * Both are ordinary Config fields, so writing reloads the plugin. Only a
+       * jobs surface writes them, matching the page's edit-gate.
+       */
+      const applyPoolFields = React.useCallback((fields) => {
+        const remote = ctx.get('remote.mediaRunningHub')
+        if (remote === undefined || typeof remote.setPoolFields !== 'function') {
+          setCfgMessage({ kind: 'error', text: t('acctUnavailable') })
+          return Promise.resolve()
+        }
+        setCfgMessage(null)
+        return remote.setPoolFields(fields)
+          .then((response) => {
+            const value = unwrap(response, 'pool settings were refused')
+            if (value === null || typeof value !== 'object' || value.status !== 'ok') {
+              const message = value && typeof value.message === 'string' ? value.message : '未知原因'
+              throw new Error(message)
+            }
+            return loadConfig()
+          })
+          .catch((err) => setCfgMessage({ kind: 'error', text: messageOf(err) }))
+      }, [loadConfig])
+
       React.useEffect(() => {
         load()
         refreshSync()
         refreshJobs()
-      }, [load, refreshSync, refreshJobs])
+        loadConfig()
+      }, [load, refreshSync, refreshJobs, loadConfig])
 
       const panelFor = (entry) => {
         if (entry.surface === 'sync') {
@@ -710,6 +963,23 @@ window.__ModuleLoader__.load({
         h('style', null, CSS),
         h('h2', null, t('title')),
         h('p', { className: 'media-rh-intro' }, t('intro')),
+        h('div', { className: 'media-rh-surface', role: 'group', 'aria-label': t('surfaceToggleLabel') },
+          h('button', {
+            type: 'button',
+            className: 'media-rh-surface-btn' + (surface !== 'jobs' ? ' is-active' : ''),
+            'aria-pressed': surface !== 'jobs',
+            onClick: () => { if (surface !== 'sync') applySurface('sync') },
+          }, t('surfaceSync')),
+          h('button', {
+            type: 'button',
+            className: 'media-rh-surface-btn' + (surface === 'jobs' ? ' is-active' : ''),
+            'aria-pressed': surface === 'jobs',
+            onClick: () => { if (surface !== 'jobs') applySurface('jobs') },
+          }, t('surfaceJobs'))
+        ),
+        cfgMessage !== null
+          ? h('p', { className: 'media-rh-msg ' + (cfgMessage.kind === 'ok' ? 'is-ok' : 'is-error'), role: cfgMessage.kind === 'ok' ? 'status' : 'alert' }, cfgMessage.text)
+          : null,
         loadError !== null
           ? h('p', { className: 'media-rh-error', role: 'alert' }, t('loadFailed', { message: loadError }))
           : null,
@@ -732,6 +1002,9 @@ window.__ModuleLoader__.load({
                 active: entry.surface === surface,
                 surfaceName,
                 judge,
+                surfaceRunning: surface,
+                cfg,
+                applyPoolFields,
               })
             })
       )
