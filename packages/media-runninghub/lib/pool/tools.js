@@ -50,7 +50,7 @@ function createSubmitTool(ctx) {
   return {
     name: 'runninghub_workflow_submit',
     description:
-      '向 RunningHub 工作流任务池提交任务（后台执行）。'
+      '【当前运行时 = JOBS】向 RunningHub 工作流任务池提交任务（后台执行）。'
       + '提交后立即返回批次号和任务号，任务完成后会自动唤醒本会话。'
       + '提交后不要在本轮轮询或等待。使用前先加载 runninghub-workflow 技能了解类型选择规则。',
     parameters: {
@@ -165,7 +165,7 @@ function createTypesTool() {
   return {
     name: 'runninghub_workflow_types',
     description:
-      '列出 RunningHub 工作流任务池的全部任务类型：每个类型的参数、必填项、默认值和费用说明。'
+      '【当前运行时 = JOBS】列出 RunningHub 工作流任务池的全部任务类型：每个类型的参数、必填项、默认值和费用说明。'
       + '提交任务前先调用此工具选择类型和参数。',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     output: {
@@ -222,7 +222,7 @@ function createStatusTool() {
   return {
     name: 'runninghub_workflow_status',
     description:
-      '查询 RunningHub 任务池的状态：当前批次、各状态任务数、最近的任务列表。'
+      '【当前运行时 = JOBS】查询 RunningHub 任务池的状态：当前批次、各状态任务数、最近的任务列表。'
       + '池排空后 currentBatchId 为 0。',
     parameters: {
       type: 'object',

@@ -175,9 +175,9 @@ function createRunningHubImageTool(ctx) {
   return {
     name: 'runninghub_image',
     description:
-      '用 RunningHub Nano Banana 2 生成图片：不传 images 就是文生图，传 1–10 张参考图就是图生图/改图。'
+      '【当前运行时 = SYNC】用 RunningHub Nano Banana 2 生成图片：不传 images 就是文生图，传 1–10 张参考图就是图生图/改图。'
       + '同步执行，一次返回一张图片文件。'
-      + '适合单张出图、改图、多图融合；批量生成请等任务池能力。',
+      + '适合单张出图、改图、多图融合；批量生成请先切到 jobs 模式再用任务池。',
     parameters: {
       type: 'object',
       properties: {
