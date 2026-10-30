@@ -1,199 +1,75 @@
-# media-suite 开发 / 上架 / npm 统一要点备忘
+# media-suite 项目说明
 
-> 目的：一份能脱离上下文、独立自洽的备忘，记录本仓库如何在「上架插件市场」「本地热更新开发」「npm 发布」三种场景下共用一套一致的包 解析布局，以及历史踩过的冷启动崩溃坑。
-
-## 1. 背景：包名加前缀
-
-- 发布/上架使用 `@tmmk` scope：
-  - `@tmmk/media-qwen`
-  - `@tmmk/media-runninghub`
-  - `@tmmk/media-suite`（分发壳，仅聚合，不会单独上架）
-- 三个包已 `npm publish` 到 registry（@tmmk scope，账号 lj110119）。
-- 包各自 `package.json#name` 即上述 scoped 名；`exports["./client"]`、`dsh.bundle.patch`、`dsh.client` 齐全。
-
-## 2. 关键约束：URL 解析必须单一来源（冷启动崩溃根因）
-
-DSH(client-modules) 在启动时按 `baseUrl + loaderName` 收集插件的 client 资源。
-**同一插件若存在两条加载路径 / 两个不同 base URL**，同一份 client bundle 会被执行两次，
-渲染端抛：
-
-```
-client-modules: duplicate factory registration for "<id>"
-(bundle executed twice without invalidate?)
--> web boot 崩溃（应用无法进入会话）
-```
-
-官方同款报告：<https://github.com/deepseek-ai/deepseek-harness/discussions/9722>
-
-- **不崩的情况**：真实 npm 安装，包落在 `node_modules/@tmmk/media-*`，
-  文件夹名 = 声明名（scoped），deps 条目与 bundle.patch 自我插入收敛到同一 base URL → sourceKey 去重为 1。
-- **崩的情况（我们曾踩过）**：本地 junction 用**无前缀文件夹名**（`node_modules/media-runninghub`），
-  而声明名是 `@tmmk/media-runninghub`。名字对不上 → 两条来源 base URL 不同 → 双重加载。
-  现象：**任意一个 media 包单独开启，DSH 冷启动就崩**；全部禁用才能启动。
-
-### 核心原则
-
-> **node_modules 里的解析名（文件夹）必须与 package.json 声明的名字一致。**
-> 本地开发态要和 npm 发布态用同一条解析路径，才能保证「开发时好好的、上架后也好好」。
-
-## 3. 统一方案
-
-**本地开发也对齐 scoped 名（folder name = declared name）**，与发布态完全一致：
-
-1. profile `package.json` 的 dependencies 用 scoped 键 + `link:`：
-   ```json
-   "@tmmk/media-qwen": "link:E:/2026/dsh-plugins/media-suite/packages/media-qwen",
-   "@tmmk/media-runninghub": "link:E:/2026/dsh-plugins/media-suite/packages/media-runninghub",
-   "@tmmk/media-suite": "link:E:/2026/dsh-plugins/media-suite/packages/media-suite"
-   ```
-2. `node_modules` 下建立 scoped 目录与 junction（指向工作区，保留热更新）：
-   ```
-   node_modules/@tmmk/media-qwen       -> E:\2026\dsh-plugins\media-suite\packages\media-qwen
-   node_modules/@tmmk/media-runninghub -> E:\2026\dsh-plugins\media-suite\packages\media-runninghub
-   node_modules/@tmmk/media-suite      -> E:\2026\dsh-plugins\media-suite\packages\media-suite
-   ```
-3. **移除无前缀 junction**（`node_modules/media-qwen`、`media-runninghub`、`media-suite`），
-   避免两个名字同时可解析，杜绝双来源。
-4. 每个包各自的 `cordis.patch.yml` 自我插入**保留**（市场安装、`dsh plugin add` 靠它挂载；在唯一 scoped 解析下不会重复）。
-
-### 三种场景如何共用
-
-| 场景 | 解析路径 | 备注 |
-|---|---|---|
-| 本地热更新开发 | `node_modules/@tmmk/media-*` junction → 工作区 | 改 `client.js`/`lib/*.js` 保存即生效；junction 指向工作区 |
-| npm 发布 | 发布物 = 包的 `files` 所列文件 | 源码/`cordis.patch.yml`/tarball 结构与本地一致 |
-| 插件市场上架 | 用户 `dsh plugin add <包名>` → 真实 npm 装到 `node_modules/@tmmk/*` | 与本地 scoped 布局一致，不崩 |
-
-### 上架流程速记
-
-- 给 <https://github.com/deepseek-ai/awesome-dsh-plugin> 提 PR，加 `data/plugins/<owner>__<repo>.yml`：
-  `url / name / category / description.en`。一个 PR 最多 3 条。
-- 硬性要求：包 declare `dsh.bundle`（▲满足）、真实代码、仓库满 1 天、加 `dsh-plugin` topic、描述属实。
-- **media-suite 是分发壳（纯聚合）不会单独收录**；media-qwen / media-runninghub 可收录。
-- 依赖指向原作者（这里是自家 @tmmk，OK）。
-- category 取值可含 tools / ai / vision / voice / workflow。
-
-## 4. 历史教训 / 避免回退
-
-- 别再在 profile 的 node_modules 里用**无前缀** junction 指向工作区——那正是崩溃根因。
-- HMR 热更新依赖「junction 指向工作区源码」，不要退回真实拷贝安装（会失去改完即生效）。
-- 改 profile（package.json / node_modules / cordis.patch.yml）前先备份；改完需重启 DSH。
-
-## 5. 当前状态（备忘快照）
-
-> ⚠️ 本节为 2026-10-29 早期快照，**已过时**。当前真实状态见第 7 节「最终结论」。
-
-- profile: `C:\Users\lj110\.dsh\profiles\desktop`
-- 早期：本地 node_modules 是无前缀 junction，media 插件禁用才能启动。
-- 上架前置：仓库当前 commit 需推送、topic、1 天等。
+> 本文是**当前状态的权威说明**。排障过程已结束，历史弯路不再保留——只记结论、机制和规则。
+> 想改包、发版、或排查加载失败，读这一份就够。
 
 ---
 
-## 6. 近期实操记录（时间线，2026-10-29）
+## 1. 包结构
 
-> 本节记录每次实际执行过的步骤与结果，防止下次忘记"走到哪、为什么、下一步"。
-> 日期为操作日期；与第 5 节（早期快照）不同，本节反映当前真实进度。
+三个包，`@tmmk` scope，已发布到 npm（账号 `lj110119`）：
 
-### 2026-10-29 崩溃根因最终确诊（官方 #9722）
+| 包 | 版本 | 角色 | 依赖 |
+|---|---|---|---|
+| `@tmmk/media-qwen` | 0.1.1 | 真插件：Qwen 多模态 / TTS / 音频生成 | 无 |
+| `@tmmk/media-runninghub` | 0.1.1 | 真插件：RunningHub 同步出图 + 工作流任务池 | 无 |
+| `@tmmk/media-suite` | 0.1.3 | **分发壳**：只负责把上面两个挂起来 | qwen `^0.1.1`、runninghub `^0.1.1` |
 
-- 根因（官方权威确认）：`@deepseek-ai/dsh-client-modules` 的 `reconcilePackage()` 按
-  `baseUrl + "\0" + loaderName` 收集 client source。**同一包有两条 base URL 不同的来源**
-  时，同一 client bundle 被执行两次 → `duplicate factory registration for "<id>"` → web boot 崩。
-- 两条来源：profile deps（`link:`，baseUrl=`profiles/desktop/`）+ 每包 `cordis.patch.yml`
-  自我插入（baseUrl=checkout 工作区真实路径 / junction realpath）。
-- **junction 内部 realpath 永远锚定工作区**，与 `profiles/desktop` 的 baseUrl 必然不同，
-  所以只要同时存在「deps 条目 + 自我插入」两条来源，就必定 duplicate。
-- 把 junction 改成 scoped 名（`@tmmk/media-*`）**只改了 loaderName，没消除两条 baseUrl 差异** → 仍崩。
-  （这个错误尝试已废弃。）
+三个包都声明了 `dsh.bundle.patch` 和 `dsh.client`（`platform: web`），都有 `index.js`（Host 半）和 `client.js`（Client 半）。
 
-### 2026-10-29 方案 2（去 profile deps、留 self-insert）—— 只治崩，不治"未安装"
-
-- 动作：从 profile `package.json` 摘掉三包 `@tmmk/media-*` 的 `link:` deps，保留各包
-  `cordis.patch.yml` 自我插入。脚本：`fix-media-profile-method2.ps1`（apply2 / verify2 / rollback2）。
-- 结果：**冷启动不再崩**（证明 self-insert 单源不重复）。但副作用：media 包缺 deps 后
-  **完全不被 DSH 登记为已安装 bundle** → 插件面板显示"未安装"。
-  （`plugin_manager list_bundles` 只有 31 个 `@deepseek-ai/*`，无 `@tmmk/media-*`。）
-- 结论：**方案 2 不是正解**。只摘 deps 会让 self-insert 也随之失效（self-insert 是"包作为
-  已安装 bundle 的附属 patch"，包不被安装则不应用）。
-
-### 2026-10-29 清理 node_modules（为真实安装铺路）
-
-- 用提权清理了 profile `node_modules` 里全部 media 残留：
-  - `@tmmk/{media-qwen,media-runninghub,media-suite}`（3 个 scoped junction）
-  - 空的 `@tmmk` 目录
-  - 悬空的 `media-api` junction（指向不存在的 `E:\2026\dsh-plugins\media-api`）
-- 脚本：`cleanup-media-profile.ps1`（已用）。
-- 清理后 `node_modules` 无任何 media 残留，是干净基座。
-
-### 2026-10-29 决定：方案 A（真实 npm 安装集成器 media-suite）<——当前所在
-
-- **方向确认**：media-suite 是分发壳/集成器，`dsh plugin add @tmmk/media-suite` 会 pnpm link
-  media-suite 并解析它声明依赖的 `@tmmk/media-qwen` / `@tmmk/media-runninghub`，三包一起装到
-  `node_modules/@tmmk/*`（真实 npm 副本，单 baseUrl）→ **不崩 + 全部显示已安装**。
-  这才是「真实用户安装路径」，且正是 #9722 说的"真实安装才不崩"。
-- **前提**：三包已 `npm publish` 到 registry（@tmmk scope）。⚠️ **media-runninghub 发布版本
-  落后于工作区最新** —— 装到的补齐版本可能不是本地正在开发的最新版；这是真实用户会遇到的
-  版本，属预期。
-- 执行命令（在 desktop profile）：
-  ```
-  dsh plugin --profile desktop add @tmmk/media-suite
-  ```
-- 下一步 / 待验证：跑上面命令 → 重启 DSH → 确认 media-qwen / media-runninghub /
-  media-suite 三个都能正常显示、启用、不崩。**安装命令由谁执行（用户终端 or 代理提权）待确认。**
-
-### 脚本清单（media-suite 根目录）
-
-- `fix-and-verify-media-profile.ps1` —— 早期 scoped 布局 apply/verify/rollback，**已弃用**。
-- `fix-media-profile-method2.ps1` —— 方案 2 的 apply2/verify2/rollback2，历史参考。
-- `cleanup-media-profile.ps1` —— 清理 profile node_modules 里 media junction，已用。
+`media-suite` 自己**没有 Config、没有设置页、没有工具**——它的 `apply()` 是空的，唯一贡献就是 patch。
 
 ---
 
-## 7. 最终结论（2026-10-30 定稿，问题已全部解决）
+## 2. 插件加载机制（理解这一节才能理解后面的坑）
 
-> 本节是**唯一权威结论**。前面 1–6 节是排障过程记录，含若干被推翻的假设，不要按它们操作。
+### 2.1 组合顺序
 
-### 7.1 真正的根因（两个独立缺陷，与双 baseUrl 无关）
+一个 `dsh` 进程 = 一棵插件树。树从**空列表**长出，按顺序叠 patch：
 
-排障过程中曾长期误判为「双 baseUrl → duplicate」。真实 npm 安装后仍崩，才暴露真因是下面两个**独立的发布缺陷**：
+```
+① dsh.profile.bundles 里每个包的 dsh.bundle.patch（按数组顺序）
+② profile 自己的 cordis.patch.yml
+③ home patch
+④ --patch 覆盖
+```
 
-**缺陷 A：`__ModuleLoader__.load` 的 `id` 用了短名，缺 `@tmmk/` 前缀**
+patch 只有两种动作：**insert 新行**、或**按 `id` 替换已有行的 config**（整块替换，不深合并）。
 
-- `client-modules` 内核用 **entry id = 完整包名**（`@tmmk/media-qwen`）去 `__ModuleLoader__`
-  查已注册 factory。包内 `client.js` 写的是 `id: 'media-qwen'`（短名）→ 查不到 →
-  ```
-  client-modules: could not load "@tmmk/media-qwen": ... loaded without registering
-  "@tmmk/media-qwen" via __ModuleLoader__.load
-  ```
-- 官方依据（`dsh-plugin-guide` 知识库）：
-  - `docs/subsystems/client-modules.md`：`WebBootEntry.id` = 包名。
-  - `docs/cookbook/adding-a-settings-card.md`：client 必须是 lazy-CJS factory 格式，
-    「向页面的模块加载器登记 **包名** 和一个 `factory(require)`」。
-  - `references/community-repo-deep-dive.md`：真实 client 插件（plugin-console）正是用
-    `window.__ModuleLoader__.load({ id, factory })` 的 CJS banner/footer 生成 ——
-    **所以这个手写形态本身合法，错的只是 id**。
-- 修复：三个包 `client.js` 的 `__ModuleLoader__.load` 的 `id` 全部改成完整包名
-  `@tmmk/media-qwen` / `@tmmk/media-runninghub` / `@tmmk/media-suite`。
-- 验证：只改 media-qwen 一个包 → 报错消失、「Qwen 媒体」设置页出现（充分证明）。
+### 2.2 一行怎么变成插件
 
-**缺陷 B：`files` 字段 `lib/*.js` 漏掉子目录，npm 包里缺 `lib/pool/`**
+```
+patch insert { id, name: '@tmmk/media-qwen' }
+  → Node 从 node_modules 解析 name → import 包的 index.js
+  → 得到 { name, apply, inject, Config }
+  → inject 的服务就绪后构建 fiber → apply(ctx) 执行
+```
 
-- `media-runninghub` 的 `package.json` `files` 写的是 `"lib/*.js"`，**通配符不匹配子目录**，
-  导致 `lib/pool/` 下 8 个文件（client/config/skill/store/tools/types/upload/watcher）
-  **没有被打进 tarball**。
-- `index.js` 开头就 `import ... from './lib/pool/config.js'` → import 抛错 → 插件 `apply`
-  起不来 → loader 里 entry 存在且 `enabled: true`，但 **`fiberPhase: null`（从未激活）** →
-  设置页永远不出现，且提示「重启后生效」（重启多少次都没用）。
-- 修复：`files` 改为 `"lib/**/*.js"`。验证：`npm pack --dry-run` 确认 10 个 lib 文件全在。
+`inject` 是加载门槛：`['credentials','tools']` 意味着这两个服务就绪前不激活；服务消失会自动卸载、恢复自动重载。
 
-### 7.2 集成器（media-suite）的正确设计
+### 2.3 Client 半
 
-**问题**：`dsh plugin add @tmmk/media-suite` 只把 **media-suite 本身**写进
-`dsh.profile.bundles`；它的两个 provider 作为**传递依赖**只进 `dependencies`，**不进 bundles**。
-而 DSH **只应用 `dsh.profile.bundles` 里包的 bundle patch** → provider 的
-`cordis.patch.yml` 永远不跑 → provider 行不挂载 → 设置页不出现。
+`client-modules` 扫 loader 里**声明了 `dsh.client` 的包**，组合成 `window.__DSH_BOOT__` 的 entry 图，浏览器按 entry 去 `/plugins/??<包名>/client.js&rev=<hash>` 拉取。
 
-**解决**：让集成器**自己插入三行**。`packages/media-suite/cordis.patch.yml`：
+**关键**：entry id = **完整包名**。`client.js` 里 `window.__ModuleLoader__.load({ id, factory })` 的 `id` 必须与之一致。
+
+---
+
+## 3. 集成器为什么必须自己插三行
+
+这是本项目最重要的设计决策。
+
+`dsh plugin add @tmmk/media-suite` 的行为是不对称的：
+
+```
+media-suite            → dependencies ✅  dsh.profile.bundles ✅
+@tmmk/media-qwen       → dependencies ✅  dsh.profile.bundles ❌  (传递依赖)
+@tmmk/media-runninghub → dependencies ✅  dsh.profile.bundles ❌  (传递依赖)
+```
+
+而 **只有 `dsh.profile.bundles` 里包的 patch 会被应用**。所以 provider 自己的 `cordis.patch.yml` 永远不跑，它的行永远不会被插入。
+
+**结论**：壳必须自己插入三行。见 `packages/media-suite/cordis.patch.yml`：
 
 ```yaml
 - insert:
@@ -210,61 +86,155 @@ client-modules: duplicate factory registration for "<id>"
         pollIntervalSeconds: 30
 ```
 
-这样**一条命令装齐三个插件**，且 provider 行的 config 也由集成器统一给出。
+provider 的默认 config 也只能由壳给出——因为 provider 那层 patch 不跑，它声明的默认值不生效。
 
-### 7.3 依赖范围必须跟版本走（易踩的坑）
+**UI 表现**：插件管理器「已安装 bundle」里只显示 media-suite 一个条目，其 `rows` 含三条。这是集成器模式的正常表现。
 
-`media-suite` 的 dependencies 若写 `^0.1.0`，pnpm 会**复用已有的 0.1.0 解析结果**
-（0.1.0 已满足范围，不会主动升到 0.1.1）→ 用户装到新版集成器，拿到的仍是**旧的坏 provider**。
+---
 
-**规则**：provider 每次修 bug 发版，集成器的依赖范围必须同步提到 `^<新版本>`。
+## 4. 两个必须记住的陷阱
 
-### 7.4 最终发布矩阵（当前线上版本）
+### 4.1 `__ModuleLoader__.load` 的 `id` 必须是完整包名
 
-| 包 | 版本 | 关键修复 |
-|---|---|---|
-| `@tmmk/media-qwen` | **0.1.1** | `client.js` id → 完整包名 |
-| `@tmmk/media-runninghub` | **0.1.1** | `client.js` id → 完整包名；`files` → `lib/**/*.js`（补回 `lib/pool/`） |
-| `@tmmk/media-suite` | **0.1.3** | 依赖范围 `^0.1.1`；patch 插入三行（一键装齐） |
+写短名（`media-qwen`）而 entry id 是 `@tmmk/media-qwen` → 内核查不到 factory →
 
-### 7.5 用户侧安装（最终形态）
-
-```bash
-dsh plugin --profile desktop add @tmmk/media-suite
+```
+client-modules: could not load "@tmmk/media-qwen": ... loaded without registering
+"@tmmk/media-qwen" via __ModuleLoader__.load
 ```
 
-装完重启 DSH → Qwen 媒体 / RunningHub 两个设置页都出现，工具全部可用。
+设置页不出现。**三个包的 `client.js` 都必须写完整包名。**
 
-⚠️ **UI 表现**：插件管理器的「已安装 bundle」列表里**只显示 media-suite 一个条目**
-（version 0.1.3），其 `rows` 内含 media-suite / media-qwen / media-runninghub 三条。
-这是集成器模式的正常表现，不是缺陷 —— provider 不作为独立 bundle 安装。
+手写 `window.__ModuleLoader__.load({ id, factory })` 这个形态本身是合法的（官方 client bundle 就是这么生成的，lazy-CJS factory 格式），错的只是 id。
 
-### 7.6 已实测通过（端到端）
+### 4.2 `files` 字段的通配符不匹配子目录
 
-- `plugin_manager list_plugins`：三个 entry 全部 `enabled: true` + `fiberPhase: active`。
-- 设置页：Qwen 媒体、RunningHub 均正常出现。
-- **真实出图**：`runninghub_workflow_submit` + `image-gen-qwen` 成功生成
-  `output/media/runninghub/batch-1/1_461_0.png`（2016×1136，4.4 MB），
-  计费 RunningHub 现金 0.10。
-- 工具注册：`runninghub_workflow_types` / `_submit` / `_status`、
-  `qwen_omni` / `qwen_tts` / `qwen_audio` 全部可见。
+`"lib/*.js"` **不匹配** `lib/pool/*.js`。写错会让子目录整个漏出 tarball →
 
-### 7.7 遗留的小改进（非阻塞）
+`index.js` 里 `import './lib/pool/config.js'` 抛错 → 插件 fiber 永远不激活（`fiberPhase: null`）→ 一直提示「重启后生效」。
 
-- `runninghub_workflow_submit` 参数校验失败时只返回 `watcher: none`，**不呈现 `errors` 详情**，
-  用户看不到「哪个参数不对」。建议把 `errors` 一并返回。（实测：给 `image-gen-qwen`
-  传不支持的 `aspect_ratio` 就会静默失败。）
-- 若用户**另外单独** add 了某个 provider（它进了 bundles），它的 patch 会和集成器的三行 patch
-  插同一 row id，可能报冲突。边缘情况，暂未处理。
+**规则**：有子目录时必须写 `"lib/**/*.js"`。
 
-### 7.8 发布凭据
+排查口诀：`npm pack --dry-run` 看文件列表，比读代码快。
 
-`npm publish` 需要**带 Bypass 2FA 的 granular access token**，用内联方式传，不要写进 `.npmrc`
-或提交到仓库：
+### 4.3 依赖范围必须跟版本走
+
+`media-suite` 依赖写 `^0.1.0` 时，pnpm 会**复用已有的 0.1.0 解析**（已满足范围，不主动升级）→ 用户装了新壳却拿到旧的坏 provider。
+
+**规则**：provider 修 bug 发版后，壳的依赖范围必须同步提到 `^<新版本>`，壳自身也要 bump 版本。
+
+---
+
+## 5. 发布流程
+
+### 5.1 顺序
+
+provider 先、壳后（壳依赖它们）：
+
+```bash
+cd packages/media-qwen        && npm publish
+cd packages/media-runninghub  && npm publish
+cd packages/media-suite       && npm publish
+```
+
+### 5.2 凭据
+
+需要**带 Bypass 2FA 的 granular access token**，内联传参，不要写进 `.npmrc`、不要提交：
 
 ```bash
 npm publish --//registry.npmjs.org/:_authToken=<token>
 ```
 
-（`.npmrc` 里那个 40 字符 `npm_` 开头的 token 若无 Bypass 2FA，会报
-`403 Two-factor authentication ... required`。）
+普通 `.npmrc` token 若无 Bypass 2FA 会报 `403 Two-factor authentication ... required`。
+
+### 5.3 发布前自检
+
+- [ ] 版本号已 bump（npm 不允许覆盖同版本）
+- [ ] `npm pack --dry-run` 文件列表完整（尤其子目录）
+- [ ] `client.js` 的 `load` id = 完整包名
+- [ ] 壳的依赖范围已跟上 provider 新版本
+- [ ] 壳的 patch 插入三行
+
+### 5.4 安装验证
+
+```bash
+dsh plugin --profile desktop add @tmmk/media-suite
+```
+
+装完重启 DSH，确认两个设置页出现。
+
+⚠️ 注意 lockfile 会锁旧版本。要强制升级用显式范围：
+
+```bash
+dsh plugin --profile desktop add @tmmk/media-suite@^<新版本>
+```
+
+---
+
+## 6. 上架插件市场
+
+- 给 <https://github.com/deepseek-ai/awesome-dsh-plugin> 提 PR，加 `data/plugins/<owner>__<repo>.yml`：`url / name / category / description.en`。一个 PR 最多 3 条。
+- 硬性要求：声明 `dsh.bundle`（✅ 已满足）、真实代码、仓库满 1 天、加 `dsh-plugin` topic、描述属实。
+- **media-suite 是纯聚合壳，不会单独收录**；media-qwen / media-runninghub 可收录。
+- category 可取 tools / ai / vision / voice / workflow。
+
+---
+
+## 7. 各包实现要点
+
+### media-qwen
+
+- `inject: ['credentials','tools']`
+- 工具：`qwen_omni`、`qwen_tts`、`qwen_audio`
+- 凭据：`DASHSCOPE_API_KEY`（走 `ctx.remote.credentials.describe/set/unset`，页面永不持有明文）
+- Host 侧提供 `mediaQwenController`，remote 方法 `dashscopeStatus`
+
+### media-runninghub
+
+Config（`packages/media-runninghub/index.js`）：
+
+| 字段 | 类型 | 默认 | volatile |
+|---|---|---|---|
+| `surface` | `jobs` \| `sync` | **`jobs`** | 否（改动会重载插件） |
+| `channel` | `lowprice` \| `official` | `lowprice` | 否 |
+| `syncSite` | `cn` \| `intl` | `cn` | ✅ |
+| `jobsSite` | `cn` \| `intl` | `cn` | ✅ |
+| `concurrency` | 1–100 | 2 | 否 |
+| `defaultInstanceType` | string | `default` | 否 |
+| `pollIntervalSeconds` | 5–600 | 30 | 否 |
+
+- `surface: sync` → 注册 `runninghub_image`
+- `surface: jobs` → 注册 `runninghub_workflow_submit` / `_types` / `_status`，并注册 runtime skill `runninghub-workflow`
+- 站点判定：**只看账户余额币种**（`USD`→国际站 `www.runninghub.ai`，`CNY`→中国站 `www.runninghub.cn`）。`accountStatus` 在任一站都能用任何 key 查，返回的 currency 属于账户本身。`apiType` 不能用于判站点。
+- 两个 Key：`RUNNINGHUB_SYNC_API_KEY`（sync）、`RUNNINGHUB_JOBS_API_KEY`（jobs）。相互独立，允许同值。
+- 台账：`packages/media-runninghub/data/pool/pool.sqlite`，gitignored，运行时自动重建。
+- 设置页：两张 Key 卡都显示；非当前 `surface` 的那张为**只读展示**（提示「切换 surface 后可编辑」）。
+
+### 任务池机制
+
+- 单例 watcher：全局只有一个，owner = **第一个提交任务的会话**；排空后只唤醒该会话，其他会话下次查台账可见。
+- 批次是**派生态**：台账有未完成任务时新任务并入当前批次；全部结束后再提交才新建批次。
+- `concurrency` 是**全局预算**（同时在飞的 RunningHub 任务数），由池自己管，不能用 `ctx.jobs` 的 per-owner 限制。
+- 11 种任务类型见 `config/task-types.json`（提交契约 + 给模型看的说明，单一来源）。
+- 提交后**立即结束轮次**，不要轮询；唤醒后再取产物。
+- 产物自动下载到 `<会话目录>/output/media/runninghub/batch-<id>/`。
+
+---
+
+## 8. 本地开发（热更新）
+
+改工作区源码即改运行代码，前提是 profile 的 `node_modules/@tmmk/*` 指向工作区。
+
+- 改 `client.js` / `lib/*.js` → 保存即生效（client 侧靠 `rev` 哈希失效缓存）
+- 改 Config 普通字段（`surface` / `concurrency`）→ 触发插件重载
+- 改 volatile 字段（`syncSite` / `jobsSite`）→ 就地更新，不重载
+
+⚠️ 不要用无前缀 junction（`node_modules/media-qwen`）——解析名与声明名不一致会导致 client source 分裂。始终用 scoped 名 `node_modules/@tmmk/media-qwen`。
+
+---
+
+## 9. 已知限制
+
+- 若用户**另外单独** `add` 了某个 provider（它也进了 `dsh.profile.bundles`），它的 patch 会和壳的三行 patch 插同一 row id，可能冲突。暂未处理。
+
+待办清单见 [`TODO.md`](./TODO.md)。
