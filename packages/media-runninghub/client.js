@@ -365,6 +365,9 @@ window.__ModuleLoader__.load({
         stNext: '下一批 ›',
         stCurBatchBtn: '回当前批次',
         stBatchLoaded: '批次 #{id}',
+        stBatchJump: '跳转',
+        stBatchJumpPlaceholder: '批次号',
+        stBatchJumpInvalid: '请输入正整数批次号',
       },
       en: {
         sectionLabel: 'RunningHub Media',
@@ -482,6 +485,9 @@ window.__ModuleLoader__.load({
         stNext: 'Next ›',
         stCurBatchBtn: 'Current batch',
         stBatchLoaded: 'Batch #{id}',
+        stBatchJump: 'Go',
+        stBatchJumpPlaceholder: 'Batch no.',
+        stBatchJumpInvalid: 'Enter a positive batch number',
       },
     }
 
@@ -557,6 +563,10 @@ window.__ModuleLoader__.load({
 .media-rh-batch-nav-btn { height: 24px; padding: 0 8px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); background: transparent; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 6px; cursor: pointer; }
 .media-rh-batch-nav-btn:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2); }
 .media-rh-batch-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.media-rh-batch-jump { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; }
+.media-rh-batch-jump-input { width: 72px; height: 24px; padding: 0 6px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 6px; }
+.media-rh-batch-jump-input:disabled { opacity: 0.4; }
+.media-rh-batch-jump-error { font-size: 12px; color: var(--dsw-alias-label-error, #d33); }
 .media-rh-table-wrap { overflow-x: auto; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
 .media-rh-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 18px; }
 .media-rh-table th { text-align: left; padding: 8px 10px; font-weight: 600; color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-layer-2); border-bottom: 0.5px solid var(--dsw-alias-border-l1); white-space: nowrap; }
@@ -659,6 +669,119 @@ window.__ModuleLoader__.load({
       if (status === 'CANCELLED') return 'idle'
       return 'error'
     }
+
+    // --- pure view logic -----------------------------------------------------
+    // A client bundle runs inside a lazy-CJS factory whose `require` resolves
+    // only packages named in `dsh.client.inject`; it cannot load a relative
+    // file, and this package has no build step. So these helpers are repeated
+    // here rather than imported from lib/pool/view.js. Keep them identical to
+    // that module — `tests/view.test.mjs` asserts both implementations against
+    // the same cases, so a drift fails a test instead of a page.
+    //
+    // Everything in this block is a plain function over the `poolStatus` reply:
+    // no React, no state, no DOM.
+
+    /** The fields a `poolStatus` reply must carry. Matches POOL_VIEW_KEYS. */
+    const POOL_VIEW_KEYS = ['currentBatchId', 'latestBatchId', 'batches', 'counts', 'tasks']
+
+    /**
+     * The batch the board anchors on. `currentBatchId` is 0 once drained, so
+     * the board falls back to the highest batch in the ledger and a finished
+     * batch stays readable instead of the board going blank.
+     */
+    function anchorBatchOf(pool) {
+      const current = Number(pool?.currentBatchId) || 0
+      const latest = Number(pool?.latestBatchId) || 0
+      return current > 0 ? current : latest
+    }
+
+    /**
+     * Whether a reply already holds exactly one batch's rows. The overview form
+     * spans every batch and is enriched with `outputs`, so testing for `outputs`
+     * cannot tell the forms apart; batch membership can.
+     */
+    function isBatchDetail(rows, desired) {
+      if (!Array.isArray(rows) || rows.length === 0) return false
+      const wanted = Number(desired)
+      if (!Number.isFinite(wanted)) return false
+      return rows.every((task) => Number(task?.batch_id) === wanted)
+    }
+
+    /** Batch navigation state: `{ shownBatch, anchorBatch, batches, index, hasPrev, hasNext, isViewingAnchor }`. */
+    function batchNav(pool, viewBatch) {
+      const batches = Array.isArray(pool?.batches) ? pool.batches.map(Number) : []
+      const anchorBatch = anchorBatchOf(pool)
+      const pinned = viewBatch === null || viewBatch === undefined ? null : Number(viewBatch)
+      const shownBatch = pinned !== null && Number.isFinite(pinned) ? pinned : anchorBatch
+      const index = batches.indexOf(shownBatch)
+      return {
+        shownBatch,
+        anchorBatch,
+        batches,
+        index,
+        // Newest-first list: a larger index is an older batch.
+        hasPrev: index >= 0 && index < batches.length - 1,
+        hasNext: index > 0,
+        isViewingAnchor: anchorBatch > 0 && shownBatch === anchorBatch,
+      }
+    }
+
+    /** Count tasks by status in the shape the board's chips read. */
+    function countByStatus(tasks) {
+      const counts = {
+        total: 0, PENDING: 0, DISPATCHED: 0, SUCCESS: 0, FAILED: 0, SUBMIT_FAILED: 0, CANCELLED: 0,
+      }
+      for (const task of Array.isArray(tasks) ? tasks : []) {
+        const status = task?.status
+        if (typeof status !== 'string') continue
+        counts.total += 1
+        if (status in counts) counts[status] += 1
+      }
+      return counts
+    }
+
+    /** Tasks still queueing or running. */
+    function outstandingOf(counts) {
+      return (Number(counts?.PENDING) || 0) + (Number(counts?.DISPATCHED) || 0)
+    }
+
+    /** Compact duration: `12s`, `3m04s`, `1h12m`. */
+    function formatDuration(seconds) {
+      const total = Math.max(0, Math.floor(Number(seconds) || 0))
+      if (total < 60) return `${total}s`
+      const minutes = Math.floor(total / 60)
+      if (minutes < 60) return `${minutes}m${String(total % 60).padStart(2, '0')}s`
+      const hours = Math.floor(minutes / 60)
+      return `${hours}h${String(minutes % 60).padStart(2, '0')}m`
+    }
+
+    /** Elapsed time for one task; trailing `…` while it is still running. */
+    function taskDuration(task, now) {
+      const start = Number(task?.created_at)
+      if (!Number.isFinite(start) || start <= 0) return { seconds: null, text: '-' }
+      const finished = Number(task?.finished_at)
+      const running = !Number.isFinite(finished) || finished <= 0
+      const end = running ? (Number(now) || Date.now()) : finished
+      const seconds = Math.max(0, Math.floor((end - start) / 1000))
+      return { seconds, text: formatDuration(seconds) + (running ? '…' : '') }
+    }
+
+    /**
+     * Silent gap in seconds for a task that should be advancing but has not
+     * been touched for two poll intervals (and at least a minute), or null when
+     * it looks healthy. This is what `pool.py ls` warns about.
+     */
+    function staleSeconds(task, pollIntervalSeconds, now) {
+      const status = task?.status
+      const anchor = status === 'DISPATCHED'
+        ? Number(task?.updated_at)
+        : status === 'PENDING' ? Number(task?.created_at) : NaN
+      if (!Number.isFinite(anchor) || anchor <= 0) return null
+      const threshold = Math.max(60, (Number(pollIntervalSeconds) || 30) * 2)
+      const gap = Math.floor(((Number(now) || Date.now()) - anchor) / 1000)
+      return gap > threshold ? gap : null
+    }
+    // --- end pure view logic -------------------------------------------------
 
     /** A short human cost summary from a ledger cost object. */
     function formatCost(cost) {
@@ -1035,6 +1158,8 @@ window.__ModuleLoader__.load({
       const [busyRow, setBusyRow] = React.useState(null) // { row, action } or null
       const [rowMsg, setRowMsg] = React.useState(null) // { row, kind, text }
       const [auto, setAuto] = React.useState(true)
+      const [jumpText, setJumpText] = React.useState('')
+      const [jumpError, setJumpError] = React.useState(false)
       const autoRef = React.useRef(true)
       autoRef.current = auto
       const loadSeq = React.useRef(0)
@@ -1062,11 +1187,16 @@ window.__ModuleLoader__.load({
               return
             }
             setPool(value)
-            const current = Number(value.currentBatchId) || 0
-            const desired = target > 0 ? target : current
+            // Follow into a batch's detail even when the pool is drained: with
+            // nothing running, currentBatchId is 0 and the board would otherwise
+            // stop at the overview and show no rows.
+            const anchor = anchorBatchOf(value)
+            const desired = target > 0 ? target : anchor
             if (desired > 0) {
-              const hasDetail = Array.isArray(value.tasks) && value.tasks.some((task) => Array.isArray(task.outputs))
-              if (!hasDetail) {
+              // The overview reply carries the newest tasks across ALL batches,
+              // enriched with outputs so a drained board still shows costs.
+              // `isBatchDetail` distinguishes the two forms by batch membership.
+              if (!isBatchDetail(value.tasks, desired)) {
                 setViewBatch(desired)
                 remote.poolStatus({ batchId: desired }).then((r2) => {
                   if (seq !== loadSeq.current) return
@@ -1094,15 +1224,13 @@ window.__ModuleLoader__.load({
         return () => clearInterval(id)
       }, [load, refresh])
 
-      const allBatches = (pool && Array.isArray(pool.allBatches)) ? pool.allBatches : []
-      const currentBatch = (pool && Number(pool.currentBatchId)) || 0
-      const shownBatch = viewBatch !== null && viewBatch !== undefined ? viewBatch : currentBatch
-      const index = allBatches.indexOf(Number(shownBatch))
-      const hasPrev = index >= 0 && index < allBatches.length - 1
-      const hasNext = index > 0
+      // Batch navigation is pure logic, so it lives in lib/pool/view.js and is
+      // tested without a browser. The board only reads the result.
+      const nav = batchNav(pool, viewBatch)
+      const { shownBatch, anchorBatch, batches: allBatches, index, hasPrev, hasNext } = nav
+      const isViewingCurrent = nav.isViewingAnchor
       const counts = (pool && pool.counts) || {}
       const tasks = (pool && Array.isArray(pool.tasks)) ? pool.tasks : []
-      const isViewingCurrent = currentBatch > 0 && Number(shownBatch) === currentBatch
 
       const gotoBatch = (batchId) => {
         if (batchId === null || batchId === undefined) return
@@ -1112,7 +1240,7 @@ window.__ModuleLoader__.load({
       const gotoPrev = () => { if (hasPrev) gotoBatch(allBatches[index + 1]) }
       const gotoNext = () => { if (hasNext) gotoBatch(allBatches[index - 1]) }
       const gotoCurrent = () => {
-        if (currentBatch > 0) { setViewBatch(currentBatch); load(currentBatch) }
+        if (anchorBatch > 0) { setViewBatch(anchorBatch); load(anchorBatch) }
         else { setViewBatch(null); load(undefined) }
       }
 
@@ -1231,7 +1359,36 @@ window.__ModuleLoader__.load({
                       disabled: loading,
                       onClick: gotoCurrent,
                     }, t('stCurBatchBtn'))
-                  : null
+                  : null,
+                // Jump straight to a batch number: the ledger keeps every batch
+                // id, and Prev/Next only walk the ids that happen to exist, so a
+                // known number needs its own entry point.
+                h('form', {
+                  className: 'media-rh-batch-jump',
+                  onSubmit: (event) => {
+                    event.preventDefault()
+                    const wanted = Number(jumpText)
+                    if (!Number.isInteger(wanted) || wanted <= 0) { setJumpError(true); return }
+                    setJumpError(false)
+                    gotoBatch(wanted)
+                  },
+                },
+                  h('input', {
+                    type: 'number',
+                    min: 1,
+                    className: 'media-rh-batch-jump-input',
+                    placeholder: t('stBatchJumpPlaceholder'),
+                    value: jumpText,
+                    onChange: (event) => { setJumpText(event.target.value); setJumpError(false) },
+                    disabled: loading,
+                  }),
+                  h('button', {
+                    type: 'submit',
+                    className: 'media-rh-batch-nav-btn',
+                    disabled: loading,
+                  }, t('stBatchJump')),
+                  jumpError ? h('span', { className: 'media-rh-batch-jump-error' }, t('stBatchJumpInvalid')) : null
+                )
               ),
               h('div', { className: 'media-rh-table-wrap' },
                 h('table', { className: 'media-rh-table' },

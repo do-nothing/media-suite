@@ -102,10 +102,17 @@ function scalar(value) {
 
 export async function enqueue(jobs, sessionId) {
   const db = await open()
-  const row = db.prepare('SELECT MAX(batch_id) AS b FROM tasks').get()
-  const outstanding = db.prepare("SELECT COUNT(*) AS c FROM tasks WHERE status IN ('PENDING','DISPATCHED')").get()
-  // While a batch is open, new jobs join it; only a drained pool opens the next.
-  const batchId = outstanding.c > 0 ? (row.b ?? 1) : (row.b ?? 0) + 1
+  // The open batch is the highest batch id that still has unfinished rows — the
+  // same query currentBatchId() uses, so what the board calls "current" is
+  // exactly what a new job joins. Taking the highest id over the whole table
+  // instead would disagree after `requeue`: it copies a finished task's old
+  // batch id, which can leave a lower batch open while a higher one is already
+  // drained, and a new job would then land in the finished batch.
+  const openRow = db.prepare(
+    "SELECT MAX(batch_id) AS b FROM tasks WHERE status IN ('PENDING','DISPATCHED')",
+  ).get()
+  const maxRow = db.prepare('SELECT COALESCE(MAX(batch_id), 0) AS b FROM tasks').get()
+  const batchId = openRow?.b ?? (maxRow?.b ?? 0) + 1
   const ids = []
   const ts = now()
   const insert = db.prepare(`
@@ -204,6 +211,20 @@ export async function taskById(rowId) {
 export async function currentBatchId() {
   const db = await open()
   const row = db.prepare("SELECT MAX(batch_id) AS b FROM tasks WHERE status IN ('PENDING','DISPATCHED')").get()
+  return row?.b ?? 0
+}
+
+/**
+ * The highest batch id in the ledger whether or not it is still open, or 0 when
+ * the ledger is empty.
+ *
+ * `currentBatchId()` answers "what is running now" and falls to 0 once drained;
+ * this answers "which batch should the board show when nothing is running" — the
+ * last one, so a finished batch stays readable instead of the board going blank.
+ */
+export async function latestBatchId() {
+  const db = await open()
+  const row = db.prepare('SELECT MAX(batch_id) AS b FROM tasks').get()
   return row?.b ?? 0
 }
 

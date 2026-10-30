@@ -14,6 +14,7 @@ import { poolConfig } from './config.js'
 import * as store from './store.js'
 import { buildPayload, getTaskType, loadTaskTypes } from './types.js'
 import { classifyFileValue, uploadFile } from './upload.js'
+import { poolView } from './view.js'
 import { startWatcher } from './watcher.js'
 
 // The single global watcher's identity, or null when the pool has drained.
@@ -272,6 +273,8 @@ function createStatusTool() {
         type: 'object',
         properties: {
           currentBatchId: { type: 'integer' },
+          latestBatchId: { type: 'integer' },
+          batches: { type: 'array', items: { type: 'integer' } },
           counts: { type: 'object' },
           tasks: { type: 'array', items: { type: 'object' } },
         },
@@ -312,13 +315,12 @@ function createStatusTool() {
       },
     },
     async execute(args) {
-      if (typeof args?.batchId === 'number') {
-        const tasks = await store.batchDetail(args.batchId)
-        const counts = { total: tasks.length }
-        for (const t of tasks) counts[t.status] = (counts[t.status] ?? 0) + 1
-        return { currentBatchId: (await store.currentBatchId()) ?? 0, counts, tasks }
-      }
-      return store.overview(typeof args?.limit === 'number' ? args.limit : 20)
+      // Same builder the settings board uses, so the tool and the board cannot
+      // disagree on field names or on which branch enriches what.
+      return poolView(store, {
+        batchId: typeof args?.batchId === 'number' ? args.batchId : undefined,
+        limit: typeof args?.limit === 'number' ? args.limit : 20,
+      })
     },
   }
 }

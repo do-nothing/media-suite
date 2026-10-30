@@ -33,6 +33,7 @@ import {
   siteOfConfig as poolSiteOfConfig,
   resolveJobsApiKey as resolveJobsKey,
 } from './lib/pool/tools.js'
+import { poolView } from './lib/pool/view.js'
 import {
   JOBS_REF,
   SYNC_REF,
@@ -97,12 +98,6 @@ function textOf(value, fallback) {
   if (value === undefined || value === null) return fallback
   const text = String(value).trim()
   return text.length === 0 ? fallback : text
-}
-
-/** Parse a JSON text column, or null when absent/invalid. */
-function safeJson(text) {
-  if (typeof text !== 'string' || text.length === 0) return null
-  try { return JSON.parse(text) } catch { return null }
 }
 
 /**
@@ -381,32 +376,12 @@ function registerController(ctx) {
      * shared.
      */
     async poolStatus(input) {
-      const batchId = Number(input?.batchId)
-      const limit = Number.isInteger(input?.limit) && input.limit > 0 ? Number(input.limit) : 50
-      if (Number.isInteger(batchId) && batchId > 0) {
-        const tasks = await poolStore.batchDetail(batchId)
-        const counts = { total: tasks.length }
-        for (const task of tasks) counts[task.status] = (counts[task.status] ?? 0) + 1
-        return {
-          status: 'ok',
-          currentBatchId: (await poolStore.currentBatchId()) ?? 0,
-          counts,
-          tasks,
-          allBatches: await poolStore.batches(),
-        }
-      }
-      const value = await poolStore.overview(limit)
-      // Enrich overview rows the way batchDetail does, so the dashboard shows
-      // costs and outputs even when viewing the current overview (e.g. drained).
-      const enriched = []
-      for (const task of value.tasks) {
-        const row = { ...task }
-        row.costs = safeJson(task.cost_json)
-        row.params = safeJson(task.params_json)
-        row.outputs = await poolStore.outputsOf(task.id)
-        enriched.push(row)
-      }
-      return { status: 'ok', currentBatchId: value.currentBatchId, counts: value.counts, tasks: enriched, allBatches: await poolStore.batches() }
+      // Same builder the status tool uses, so the board and the tool cannot
+      // disagree on field names or on which branch enriches what.
+      return poolView(poolStore, {
+        batchId: Number(input?.batchId),
+        limit: Number.isInteger(input?.limit) && input.limit > 0 ? Number(input.limit) : 50,
+      })
     },
     /**
      * Cancel one task: ask RunningHub to cancel a dispatched task, then mark
