@@ -1150,8 +1150,16 @@ window.__ModuleLoader__.load({
 
     /** The live task-pool dashboard: counts, batch navigation, and per-row actions. */
     function PoolDashboard({ ctx, t }) {
-      const remote = ctx.get('remote.mediaRunningHub')
-      const [pool, setPool] = React.useState(null) // { status, currentBatchId, counts, tasks, allBatches }
+      // `ctx.get()` hands back a fresh proxy object on every call, so holding it
+      // in a plain const makes every useCallback below a new function each
+      // render. That re-ran the mount effect, which called load, which set state,
+      // which re-rendered — an endless loop that also bumped loadSeq on every
+      // pass, so the detail reply of one pass was always dropped as stale by the
+      // next. Refs keep identity stable while still reading the live service.
+      const remoteRef = React.useRef(undefined)
+      remoteRef.current = ctx.get('remote.mediaRunningHub')
+      const viewBatchRef = React.useRef(null)
+      const [pool, setPool] = React.useState(null) // { status, currentBatchId, counts, tasks, batches }
       const [viewBatch, setViewBatch] = React.useState(null) // null = current batch
       const [loading, setLoading] = React.useState(false)
       const [error, setError] = React.useState(null)
@@ -1162,6 +1170,7 @@ window.__ModuleLoader__.load({
       const [jumpError, setJumpError] = React.useState(false)
       const autoRef = React.useRef(true)
       autoRef.current = auto
+      viewBatchRef.current = viewBatch
       const loadSeq = React.useRef(0)
 
       /**
@@ -1170,6 +1179,7 @@ window.__ModuleLoader__.load({
        * into the current batch's detail when the pool is non-empty.
        */
       const load = React.useCallback((target) => {
+        const remote = remoteRef.current
         if (remote === undefined || typeof remote.poolStatus !== 'function') {
           setError(t('acctUnavailable'))
           return
@@ -1196,14 +1206,23 @@ window.__ModuleLoader__.load({
               // The overview reply carries the newest tasks across ALL batches,
               // enriched with outputs so a drained board still shows costs.
               // `isBatchDetail` distinguishes the two forms by batch membership.
-              if (!isBatchDetail(value.tasks, desired)) {
-                setViewBatch(desired)
+              const isDetail = isBatchDetail(value.tasks, desired)
+              if (!isDetail) {
+                // Do not setViewBatch here. Pinning the batch from inside load
+                // re-renders the component, which rebuilds `refresh`, which
+                // re-runs the effect, which calls load again — and that bump of
+                // loadSeq makes this very reply look stale, so the detail reply
+                // is dropped and the board keeps the overview rows. The shown
+                // batch already derives from the anchor when nothing is pinned,
+                // so the detail lands correctly without touching state.
                 remote.poolStatus({ batchId: desired }).then((r2) => {
                   if (seq !== loadSeq.current) return
                   const d = unwrap(r2, 'batch detail was refused')
                   if (d !== null && typeof d === 'object' && d.status === 'ok') setPool(d)
                   setLoading(false)
-                }).catch((err) => { if (seq === loadSeq.current) { setError(messageOf(err)); setLoading(false) } })
+                }).catch((err) => {
+                  if (seq === loadSeq.current) { setError(messageOf(err)); setLoading(false) }
+                })
                 return
               }
             }
@@ -1214,9 +1233,15 @@ window.__ModuleLoader__.load({
             setError(messageOf(err))
             setLoading(false)
           })
-      }, [remote])
+      // No dependencies: the body reads the live service and the pinned batch
+      // through refs, so it must not be rebuilt on render. Rebuilding it re-ran
+      // the mount effect and looped.
+      }, [])
 
-      const refresh = React.useCallback(() => load(viewBatch === null ? undefined : viewBatch), [load, viewBatch])
+      const refresh = React.useCallback(() => {
+        const pinned = viewBatchRef.current
+        load(pinned === null ? undefined : pinned)
+      }, [load])
 
       React.useEffect(() => {
         load()
@@ -1248,6 +1273,7 @@ window.__ModuleLoader__.load({
        * Replay one task verbatim. Only terminal rows offer it, so no confirm.
        */
       const replay = (row) => {
+        const remote = remoteRef.current
         if (busyRow !== null || remote === undefined || typeof remote.poolResubmit !== 'function') return
         setBusyRow({ row: row.id, action: 'replay' })
         setRowMsg(null)
@@ -1270,6 +1296,7 @@ window.__ModuleLoader__.load({
        * Cancel one task. Destructive (stops a running job), so confirm first.
        */
       const cancelRow = (row) => {
+        const remote = remoteRef.current
         if (busyRow !== null || remote === undefined || typeof remote.poolCancel !== 'function') return
         if (!window.confirm(t('statusTitle') + '\n' + t('stCancel') + ' #' + row.id + '?')) return
         setBusyRow({ row: row.id, action: 'cancel' })
@@ -1335,7 +1362,7 @@ window.__ModuleLoader__.load({
                 countChip('SUBMIT_FAILED', t('statusSubmitFailed')),
                 countChip('CANCELLED', t('statusCancelled')),
                 h('span', { className: 'media-rh-count' }, t('curBatch'), ' ',
-                  h('b', null, currentBatch > 0 ? '#' + currentBatch : t('batchNone')))
+                  h('b', null, anchorBatch > 0 ? '#' + anchorBatch : t('batchNone')))
               ),
               h('div', { className: 'media-rh-batch-nav' },
                 h('button', {

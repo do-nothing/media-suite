@@ -81,7 +81,6 @@ media-suite            → dependencies ✅  dsh.profile.bundles ✅
       name: '@tmmk/media-runninghub'
       config:
         surface: jobs
-        channel: lowprice
         concurrency: 2
         pollIntervalSeconds: 30
 ```
@@ -196,7 +195,6 @@ Config（`packages/media-runninghub/index.js`）：
 | 字段 | 类型 | 默认 | volatile |
 |---|---|---|---|
 | `surface` | `jobs` \| `sync` | **`jobs`** | 否（改动会重载插件） |
-| `channel` | `lowprice` \| `official` | `lowprice` | 否 |
 | `syncSite` | `cn` \| `intl` | `cn` | ✅ |
 | `jobsSite` | `cn` \| `intl` | `cn` | ✅ |
 | `concurrency` | 1–100 | 2 | 否 |
