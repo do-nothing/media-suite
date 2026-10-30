@@ -7,6 +7,18 @@
 
 `surface` 决定当前注册哪一套。
 
+## RunningHub 是什么
+
+RunningHub 是一个在线的 AI 图像与视频生成平台。它提供无限画布、Agent 快捷生成，以及基于 ComfyUI 的可视化工作流，可以把 AI 应用、工作流与生成任务自由组合。平台按算力计费，不同模型与任务类型单价不同，以平台公示为准。
+
+本插件通过 RunningHub 的开放 API 调用这些能力，因此需要一个 RunningHub 账户和对应的 API Key。
+
+还没有账户的话，可以用这个链接注册：
+
+<https://www.runninghub.cn?inviteCode=mnsw5sb8>
+
+通过该链接注册的新账户会获得平台赠送的 RH 币，可用于生成图片与视频。赠币数量与规则由 RunningHub 决定，可能随时调整。
+
 ## 两套能力怎么选
 
 | | `sync` | `jobs` |
@@ -148,8 +160,3 @@ Agent 会自己选择合适的工具和参数。
 - `image-gen-qwen` / `image-edit-qwen` 系列只扣 RH 算力币，不产生第三方现金费
 - `image-edit-banana2` 除 RH 币外还收第三方接口费（约 ¥0.19/张），非必要不用
 - 视频类（`i2v-*`）费用明显高于生图，`multi-ref` 用的是 plus 实例，最贵
-
-## 已知行为
-
-- **枚举值必须原样传**。不同任务类型的「画面比例」编码方式不同（`image-gen-qwen` 用 `"16:9 (Widescreen)"`，`image-edit-banana2` 用 `"16:9"`，视频类用整数 `aspectSelect`），提交前以 `runninghub_workflow_types` 输出的「合法值」为准。传错不会报错，但会扣费且拿不到产物。
-- **偶发空转**：极少数情况下 RunningHub 返回 SUCCESS 但 `results` 为空。遇到会直接告知，不自行重试。

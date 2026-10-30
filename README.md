@@ -30,7 +30,7 @@ dsh plugin --profile <你的 profile> add @tmmk/media-suite
 |---|---|
 | `runninghub_image` | 一句话出图；给参考图就是改图或多图融合 |
 
-**工作流任务池**（11 种任务类型，全部实测可用）
+**工作流任务池**（11 种任务类型）
 
 | 工具 | 能做什么 |
 |---|---|
@@ -47,11 +47,19 @@ dsh plugin --profile <你的 profile> add @tmmk/media-suite
 | 能力 | 需要的凭据 | 从哪里获取 |
 |---|---|---|
 | Qwen 媒体 | `DASHSCOPE_API_KEY` | [阿里云百炼](https://bailian.console.aliyun.com/) |
-| RunningHub | `RUNNINGHUB_SYNC_API_KEY`（同步出图）<br>`RUNNINGHUB_JOBS_API_KEY`（任务池） | [RunningHub](https://www.runninghub.cn/) |
+| RunningHub | `RUNNINGHUB_SYNC_API_KEY`（同步出图）<br>`RUNNINGHUB_JOBS_API_KEY`（任务池） | [RunningHub](https://www.runninghub.cn?inviteCode=mnsw5sb8) |
 
 Key 统一存在 `$DSH_HOME/.credentials.yaml` 的 `refs:` 段，由 Harness 凭据服务管理。设置页只显示「已配置 / 未配置」和校验状态，**不回显已保存的密钥**。
 
 两个 RunningHub Key 相互独立，可以填相同的值。插件会自动按账户余额币种判定 Key 属于中国站还是国际站，不需要手动选。
+
+### RunningHub 是什么
+
+RunningHub 是一个在线的 AI 图像与视频生成平台，提供无限画布、Agent 快捷生成，以及基于 ComfyUI 的可视化工作流，可以把 AI 应用、工作流与生成任务自由组合。平台按算力计费，单价以平台公示为准。
+
+本插件通过 RunningHub 的开放 API 调用这些能力，因此需要一个 RunningHub 账户和 API Key。
+
+还没有账户的话，可以用上面的邀请链接注册，新账户会获得平台赠送的 RH 币。赠币数量与规则由 RunningHub 决定，可能随时调整。
 
 ## 输出位置
 
