@@ -223,18 +223,80 @@ Config（`packages/media-runninghub/index.js`）：
 
 ## 8. 本地开发（热更新）
 
-改工作区源码即改运行代码，前提是 profile 的 `node_modules/@tmmk/*` 指向工作区。
+### 8.1 怎么把 profile 切到开发态
 
-- 改 `client.js` / `lib/*.js` → 保存即生效（client 侧靠 `rev` 哈希失效缓存）
-- 改 Config 普通字段（`surface` / `concurrency`）→ 触发插件重载
-- 改 volatile 字段（`syncSite` / `jobsSite`）→ 就地更新，不重载
+改 `C:\Users\lj110\.dsh\profiles\desktop\package.json`，把三个包都写成 `link:` 绝对路径（正斜杠）：
 
-⚠️ 不要用无前缀 junction（`node_modules/media-qwen`）——解析名与声明名不一致会导致 client source 分裂。始终用 scoped 名 `node_modules/@tmmk/media-qwen`。
+```json
+"@tmmk/media-qwen": "link:E:/2026/dsh-plugins/media-suite/packages/media-qwen",
+"@tmmk/media-runninghub": "link:E:/2026/dsh-plugins/media-suite/packages/media-runninghub",
+"@tmmk/media-suite": "link:E:/2026/dsh-plugins/media-suite/packages/media-suite",
+```
+
+然后：
+
+```bash
+cd C:\Users\lj110\.dsh\profiles\desktop
+dsh plugin --profile desktop install
+```
+
+profile 的 `pnpm-workspace.yaml` 里有 `nodeLinker: hoisted`，pnpm 会按 `link:` 在
+`node_modules/@tmmk/*` 建 **junction** 指向工作区。**必须三个都写**——只写 suite 的话，
+两个 provider 会从 npm 装真实副本，只有 suite 是 junction。
+
+验证：
+
+```powershell
+Get-ChildItem C:\Users\lj110\.dsh\profiles\desktop\node_modules\@tmmk -Force |
+  Select-Object Name, LinkType, @{n='Target';e={$_.Target}}
+```
+
+三个都应是 `Junction` 且指向 `E:\2026\dsh-plugins\media-suite\packages\*`。
+
+### 8.2 两套 HMR 机制（关键）
+
+改动的文件位置决定要不要手动重载，因为**监听机制完全不同**：
+
+| 改什么 | 自动生效 | 机制 |
+|---|---|---|
+| `client.js`（浏览器侧） | ✅ **保存即生效** | `@deepseek-ai/dsh-client-hmr` 按 `pollIntervalMs`（**默认 500ms**）stat 轮询 bundle，rev 变化就通知浏览器重拉 |
+| `index.js` / `lib/*.js`（Host 侧） | ❌ **必须手动重载** | `@deepseek-ai/dsh-hmr` 的 `root` 是空列表，**只监听 profile 配置，不监听模块文件** |
+| profile `cordis.patch.yml` | ✅ 自动 | `dsh-hmr` 的配置监听 |
+| Config 普通字段（`surface` / `concurrency`） | ✅ 自动重载插件 | 配置变更走 Loader 正常路径 |
+| Config volatile 字段（`syncSite` / `jobsSite`） | ✅ 就地更新，**不重载** | `updateVolatile` 改写引用，fiber.config 身份不变 |
+
+**所以「没配 `root` 也能热加载 `client.js`」不是异常**：`client.js` 走的是 client-hmr 的
+轮询通道，和 `dsh-hmr` 的模块监听无关。
+
+### 8.3 Host 侧改完怎么重载
+
+`media-qwen` / `media-runninghub` 在 `plugin_manager list_plugins` 里带
+`readOnlyReason: unaddressable`（它们是壳的 patch 插进来的行，不是独立 bundle），**不能单独开关**。
+
+但 **`media-suite` 本身可以**——切一次 disabled → enabled，它 patch 插入的三行会一起重载：
+
+```
+plugin_manager set_plugin  target: include:media-suite  enabled: false
+plugin_manager set_plugin  target: include:media-suite  enabled: true
+```
+
+**不要**给 `dsh-hmr` 配 `root` 指向工作区：junction 会让每次保存都触发整插件重载，
+频繁重载丢状态，且代码有语法错误时插件会直接失效。Host 侧改动频率低，手动重载更可控。
+
+### 8.4 这条路已验证可行
+
+`dependencies` 写 `link:` + pnpm 建 junction + 完整包名的 `load` id —— **三者同时成立时不崩**。
+
+10-29 那次 junction 崩溃的真因是 `client.js` 的 `load` id 用了短名，不是 junction 本身。
+修好 id 之后，开发态和发布态可以共存。
+
+⚠️ 不要用无前缀 junction（`node_modules/media-qwen`）——解析名与声明名不一致会让 client source 分裂。始终用 scoped 名 `node_modules/@tmmk/media-qwen`。
+
+⚠️ 装别的插件（或点市场升级）时 pnpm 会重写 `node_modules`，junction 可能被换回真实副本。
+切回开发态只需重跑一次 `dsh plugin --profile desktop install`。
 
 ---
 
 ## 9. 已知限制
 
 - 若用户**另外单独** `add` 了某个 provider（它也进了 `dsh.profile.bundles`），它的 patch 会和壳的三行 patch 插同一 row id，可能冲突。暂未处理。
-
-待办清单见 [`TODO.md`](./TODO.md)。
