@@ -19,7 +19,7 @@
  * the tools know which host to call without asking again.
  */
 window.__ModuleLoader__.load({
-  id: 'media-runninghub',
+  id: '@tmmk/media-runninghub',
   factory(require) {
     const module = { exports: {} }
     const exports = module.exports

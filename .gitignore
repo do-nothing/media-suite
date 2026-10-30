@@ -9,3 +9,8 @@ Thumbs.db
 *.bak
 output/
 out-test*/
+
+# One-off troubleshooting scripts (kept locally, not part of the package)
+fix-and-verify-media-profile.ps1
+fix-media-profile-method2.ps1
+cleanup-media-profile.ps1

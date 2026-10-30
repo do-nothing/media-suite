@@ -7,7 +7,7 @@
  * bundle's client entry is declared in `package.json`.
  */
 window.__ModuleLoader__.load({
-  id: 'media-suite',
+  id: '@tmmk/media-suite',
   factory(require) {
     const module = { exports: {} }
     const exports = module.exports

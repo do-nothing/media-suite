@@ -1,6 +1,6 @@
 {
   "name": "@tmmk/media-runninghub",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "index.js",
   "engines": {
@@ -19,7 +19,7 @@
   },
   "files": [
     "index.js",
-    "lib/*.js",
+    "lib/**/*.js",
     "client.js",
     "cordis.patch.yml",
     "config/task-types.json",

@@ -9,7 +9,7 @@
  * echoed back, kept in page state, or cached anywhere else.
  */
 window.__ModuleLoader__.load({
-  id: 'media-qwen',
+  id: '@tmmk/media-qwen',
   factory(require) {
     const module = { exports: {} }
     const exports = module.exports
