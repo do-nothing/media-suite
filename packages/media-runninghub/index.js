@@ -69,8 +69,6 @@ const NAMESPACE = 'media-runninghub'
 export const Config = Schema.object({
   surface: Schema.union(['jobs', 'sync']).default('jobs')
     .description('注册哪一套工具：jobs 为工作流任务池，sync 为同步图片生成。切换会重载插件。'),
-  channel: Schema.union(['lowprice', 'official']).default('lowprice')
-    .description('Nano Banana 2 渠道：lowprice 低价渠道，official 官方稳定版。'),
   syncSite: Schema.union(['cn', 'intl']).default('cn').volatile()
     .description('sync Key 所属站点：cn 为中国站，intl 为国际站。保存 Key 时按余额币种自动判定。'),
   jobsSite: Schema.union(['cn', 'intl']).default('cn').volatile()

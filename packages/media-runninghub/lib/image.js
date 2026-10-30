@@ -28,15 +28,15 @@ import {
   withDeadline,
 } from './shared.js'
 
-const CHANNEL_ENDPOINTS = {
-  lowprice: {
-    text: 'rhart-image-n-g31-flash/text-to-image',
-    edit: 'rhart-image-n-g31-flash/image-to-image',
-  },
-  official: {
-    text: 'rhart-image-n-g31-flash-official/text-to-image',
-    edit: 'rhart-image-n-g31-flash-official/image-to-image',
-  },
+// Sync image generation always uses the low-price Nano Banana 2 endpoints.
+// The official-endpoint variant was dropped: it was a Config field that only
+// this tool read, so it appeared in every profile's config as if it applied
+// globally while the jobs pool ignored it entirely, and the settings page never
+// exposed it. Keeping the choice in config added confusion without adding a
+// choice anyone could reach.
+const ENDPOINTS = {
+  text: 'rhart-image-n-g31-flash/text-to-image',
+  edit: 'rhart-image-n-g31-flash/image-to-image',
 }
 
 const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9', '5:4', '4:5']
@@ -255,11 +255,6 @@ function createRunningHubImageTool(ctx) {
         )
       }
 
-      // The channel is an ordinary field, so changing it reloads the plugin
-      // and re-creates this tool; reading it live keeps the two in step
-      // without relying on that.
-      const channel = ctx.fiber.config?.channel === 'official' ? 'official' : 'lowprice'
-      const endpoints = CHANNEL_ENDPOINTS[channel]
       const mode = input.images.length === 0 ? 'text-to-image' : 'image-to-image'
 
       const payload = {
@@ -278,7 +273,7 @@ function createRunningHubImageTool(ctx) {
 
       const taskId = await withDeadline(
         exec,
-        (signal) => submit(input.images.length === 0 ? endpoints.text : endpoints.edit, payload, apiKey, site, signal),
+        (signal) => submit(input.images.length === 0 ? ENDPOINTS.text : ENDPOINTS.edit, payload, apiKey, site, signal),
         REQUEST_TIMEOUT_MS,
       )
 

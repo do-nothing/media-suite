@@ -140,6 +140,19 @@ export async function buildPayload(t, params, resolveFile) {
     else if (p.required) return { ok: false, error: `type '${t.typeId}': required param '${p.name}' missing` }
     else continue
 
+    // Enum values are matched exactly by the workflow node. An out-of-list value
+    // is not rejected upstream: the task is accepted, charged, and reported
+    // SUCCESS with an empty `results` array, so the caller pays and gets
+    // nothing. Catching it here turns that silent loss into a clear message
+    // that also lists the accepted values.
+    if (Array.isArray(p.enum) && p.enum.length > 0 && !p.enum.includes(value)) {
+      return {
+        ok: false,
+        error: `type '${t.typeId}': param '${p.name}' got ${JSON.stringify(value)}, `
+          + `not one of ${p.enum.map((v) => JSON.stringify(v)).join(', ')}`,
+      }
+    }
+
     let fieldValue
     if (FILE_TYPES.has(p.type)) {
       const stripped = typeof value === 'string' ? value.trim() : value

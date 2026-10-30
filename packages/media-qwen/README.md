@@ -50,11 +50,11 @@
 音频写到：
 
 ```text
-<输出根目录>/media/qwen/TTS-Plus/...​
-<输出根目录>/media/qwen/TTS-Next/...​
+<会话目录>/output/media/qwen/TTS-Plus/...
+<会话目录>/output/media/qwen/TTS-Next/...
 ```
 
-输出根目录由 `media-suite` 的 `mediaSettings.outputRoot` 提供；没有 suite 时回退到 `<会话目录>/output`。
+需要写到别处时，在调用里传 `output` 参数（相对路径按当前工作目录解析，目录自动创建）。
 
 ### Endpoint
 
@@ -85,8 +85,20 @@ Key 写入 `$DSH_HOME/.credentials.yaml` 的 `refs:` 段，由 Harness 凭据服
 
 ## 安装
 
-```powershell
-plugin_manager install_bundle .\packages\media-qwen
+```bash
+dsh plugin --profile <profile> add @tmmk/media-qwen
 ```
 
-或安装 `media-suite` 一次得到整套媒体能力。
+装完重启 DSH，设置里会出现 **Qwen 媒体**。
+
+**第一步：配置 Key。** 打开设置页填入 `DASHSCOPE_API_KEY` 并保存，页面会显示校验状态。
+
+**第二步：开始使用。** 直接用自然语言让 Agent 调用，例如：
+
+- 「把这段视频转写成文字」
+- 「用温柔的女声朗读这段旁白」
+- 「生成一段雨夜街道的环境音，带两个人的对话」
+
+Agent 会自己选择合适的工具和参数。
+
+如果只想一次性装齐 Qwen 与 RunningHub，可以装 `@tmmk/media-suite`。

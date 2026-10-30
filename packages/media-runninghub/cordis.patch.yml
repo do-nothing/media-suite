@@ -3,6 +3,5 @@
       name: '@tmmk/media-runninghub'
       config:
         surface: jobs
-        channel: lowprice
         concurrency: 2
         pollIntervalSeconds: 30

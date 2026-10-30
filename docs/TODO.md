@@ -5,35 +5,7 @@
 
 ---
 
-## 1. `submit` 参数校验失败时不呈现具体原因（体验 bug）
-
-**现象**：`runninghub_workflow_submit` 的所有任务都在解析阶段失败时，只返回
-`watcher: none`，工具输出里只有「已提交：批次 #0，0 个任务，1 个被拒绝（watcher: none）」，
-**看不到到底哪个参数错了**。
-
-**实测复现**：给 `image-gen-qwen` 传它不支持的 `aspect_ratio` 参数 → 静默失败，
-必须去掉参数才能提交成功。
-
-**根因**：`lib/pool/tools.js:96` 只把 `errors.length` 拼成「N 个被拒绝」，
-`errors` 数组的**内容**没有进 tool 输出：
-
-```js
-const errors = Array.isArray(value.errors) && value.errors.length > 0
-  ? `，${value.errors.length} 个被拒绝`
-  : ''
-text: `已提交：批次 #${value.batchId}，${value.taskIds.length} 个任务${errors}（watcher: ${value.watcher}）`
-```
-
-而 `errors` 数组本身是有的（`tools.js:143` `errors.push(\`任务 ${index + 1}: ${error?.message}\`)`）。
-
-**修法**：把 `errors` 的每条内容也拼进 tool text（或作为独立行列出）。
-涉及文件：`packages/media-runninghub/lib/pool/tools.js`（submit 工具的 text 生成处）。
-
-**优先级**：高。模型和用户都会被这个静默失败卡住，且容易误判为「插件坏了」。
-
----
-
-## 2. 单独装 provider 时的 patch id 冲突（边缘情况）
+## 1. 单独装 provider 时的 patch id 冲突（边缘情况）
 
 **场景**：用户除了 `add @tmmk/media-suite`，又单独 `add @tmmk/media-qwen`。
 后者会进 `dsh.profile.bundles`，它自己的 `cordis.patch.yml` 也会被应用 →
@@ -50,13 +22,27 @@ text: `已提交：批次 #${value.batchId}，${value.taskIds.length} 个任务$
 
 ---
 
-## 3. 文档中设置页描述与实际实现的对齐（已随重写解决）
+## 2. 集成器模式下 provider 无法独立重载（已知副作用）
 
-原 `jobs-design.md` 称设置页「标签页切换、另一张整块隐藏（不显示只读卡）」，
-实际是**两张卡都显示、非当前 surface 的为只读**。
+**现象**：`dsh.profile.bundles` 里只有 `@tmmk/media-suite` 一个条目，provider 的行是壳的
+patch 插进去的，所以插件管理器的「已安装」列表里没有 media-qwen / media-runninghub，
+**用户无法单独停用/启用它们**，改代码后只能重启整个 DSH 才生效。
 
-重写后的 `local-dev-and-marketplace.md` §7 已按实际实现描述。
-**本项无需再动**，仅记录以免有人翻到旧说法。
+**影响**：对最终用户无感（装完就能用）；对开发调试不便。
+
+**候选修法**：
+- 让壳的 patch 额外给 provider 各建一个独立 bundle 条目（但会和现有 insert 冲突，见第 1 项）
+- 接受现状，开发时靠重启
+
+**优先级**：低。
+
+---
+
+## 3. `media-drama` 包尚未开始
+
+**现状**：仅在设计阶段，未建包。
+
+**优先级**：低（未来规划）。
 
 ---
 
@@ -67,3 +53,19 @@ text: `已提交：批次 #${value.batchId}，${value.taskIds.length} 个任务$
 1. **组合层** —— entry 存不存在？`plugin_manager list_plugins` 里找不到 → 包没进 `dsh.profile.bundles`，patch 没应用。
 2. **Host 层** —— `fiberPhase` 是不是 `null`？是 → `index.js` import 抛错（先查 `npm pack --dry-run` 看文件是否齐全）。
 3. **Client 层** —— 浏览器 console 报错？看是 `duplicate factory registration`（两条来源）还是 `loaded without registering`（id 不是完整包名）。
+
+---
+
+## 附：任务提交的合法枚举值速查
+
+不同任务类型的「画面比例」编码方式**完全不同**，写错不会报错、照样扣费、25 秒后返回
+SUCCESS 但无产物。合法值一律以 `runninghub_workflow_types` 工具输出的
+「合法值（必须原样传）」为准：
+
+| 类型 | 参数 | 编码方式 |
+|---|---|---|
+| `image-gen-qwen` / `image-edit-qwen` / `image-edit-qwen-multi` | `aspectRatio` | 带后缀字符串，如 `"16:9 (Widescreen)"` |
+| `image-edit-banana2` | `aspectRatio` | 纯数字字符串，如 `"16:9"` |
+| `i2v-minimax-h3-*` | `aspectSelect` | 整数编号 1–6 |
+
+判别信号：正常出图耗时 **80–90 秒**；非法枚举值 25–30 秒就「成功」且 `results` 为空。

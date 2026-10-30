@@ -1,53 +1,79 @@
 # media-suite
 
-第三方媒体能力的插件家族。每个 provider 独立成包，`media-suite` 负责一键安装与跨 provider 的全局配置。
+给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）用的媒体能力插件家族。
 
-## 包
+一次安装，把阿里云百炼的 Qwen 能力与 RunningHub 的图片 / 视频 / 音频能力接进你的 Agent。
 
-| 包 | 状态 | 内容 |
-|---|---|---|
-| `packages/media-qwen` | 已实现 | `qwen_omni` / `qwen_tts` / `qwen_audio` |
-| `packages/media-runninghub` | 部分实现 | `surface: sync` 已实现（图片生成）；`surface: jobs` 设计中，见 [`packages/media-runninghub/docs/jobs-design.md`](packages/media-runninghub/docs/jobs-design.md) |
-| `packages/media-suite` | 计划中 | 一键安装入口 + 全局配置 |
-| `packages/media-drama` | 计划中 | 短剧工作流 |
+## 一键安装
 
-## 设计文档
+```bash
+dsh plugin --profile <你的 profile> add @tmmk/media-suite
+```
 
-| 文档 | 内容 |
+装完重启 DSH，设置里会出现 **Qwen 媒体** 和 **RunningHub 媒体** 两个页面。
+
+## 你会得到什么
+
+### Qwen 媒体（阿里云百炼 DashScope）
+
+| 工具 | 能做什么 |
 |---|---|
-| [`packages/media-runninghub/docs/jobs-design.md`](packages/media-runninghub/docs/jobs-design.md) | `media-runninghub` 的 `jobs` 模式（工作流任务池）设计决策、依据与待定项 |
+| `qwen_omni` | 理解视频、音频、图片，返回文字描述或转写 |
+| `qwen_tts` | 把文字读成语音，可选预置音色、可描述情绪语气 |
+| `qwen_audio` | 按描述生成完整音频场景（对话、环境声、短剧片段），可用参考音色 |
 
-**设计文档是决策的唯一权威来源**——上下文压缩后以文档为准，不依赖对话记录。
+### RunningHub 媒体
 
-## 设计约定
+**同步出图**
 
-- **包名带 `media-`**，工具名用 provider 短前缀（`qwen_*`、`runninghub_*`）。
-- **provider 只管自己的 API 和自己的 Key**，不关心业务工作流。
-- **工作流层（`media-drama` 等）只暴露高层工具**，不直接点名 provider。
-- **密钥统一存在全局凭据库** `$DSH_HOME/.credentials.yaml` 的 `refs:` 段，拆包不会让 Key 变多。
-- **跨 provider 的配置只有一处**：输出根目录，由 `media-suite` 提供。
-- **结构性开关走 Config**（改完触发插件重载），**运行时数值走 Settings**，**秘密走 Credentials**。
+| 工具 | 能做什么 |
+|---|---|
+| `runninghub_image` | 一句话出图；给参考图就是改图或多图融合 |
 
-## 输出路径
+**工作流任务池**（11 种任务类型，全部实测可用）
+
+| 工具 | 能做什么 |
+|---|---|
+| `runninghub_workflow_submit` | 提交任务，一次一条或多条，立即返回批次号 |
+| `runninghub_workflow_types` | 查全部任务类型的参数与合法值 |
+| `runninghub_workflow_status` | 查批次进度与费用 |
+
+支持的任务：文生图、单图/多图改图、全能图片编辑、首帧/首尾帧/多参考生视频、语音克隆、数字人、文生音乐、人声分离。
+
+**任务池的工作方式**：提交后就可以结束对话，不用等。任务在后台排队执行，产物自动下载，批次完成时会自动唤醒你并附上产物路径与费用。
+
+## 需要准备什么
+
+| 能力 | 需要的凭据 | 从哪里获取 |
+|---|---|---|
+| Qwen 媒体 | `DASHSCOPE_API_KEY` | [阿里云百炼](https://bailian.console.aliyun.com/) |
+| RunningHub | `RUNNINGHUB_SYNC_API_KEY`（同步出图）<br>`RUNNINGHUB_JOBS_API_KEY`（任务池） | [RunningHub](https://www.runninghub.cn/) |
+
+Key 统一存在 `$DSH_HOME/.credentials.yaml` 的 `refs:` 段，由 Harness 凭据服务管理。设置页只显示「已配置 / 未配置」和校验状态，**不回显已保存的密钥**。
+
+两个 RunningHub Key 相互独立，可以填相同的值。插件会自动按账户余额币种判定 Key 属于中国站还是国际站，不需要手动选。
+
+## 输出位置
+
+所有产物默认落在当前会话目录下：
 
 ```text
-<输出根目录>/media/qwen/...​
-<输出根目录>/media/runninghub/...​
+<会话目录>/output/media/qwen/...
+<会话目录>/output/media/runninghub/...
 ```
 
-没有 `media-suite` 时，`<会话目录>/output` 作为根目录。
+需要写到别处时，在每次调用里指定（`output` 或 `outputDir` / `outputName`），不用改插件配置。
 
-## 安装单个包
+## 包里有什么
 
-```powershell
-# 在本仓库根目录下：
-plugin_manager install_bundle .\packages\media-qwen
-```
+| 包 | 说明 |
+|---|---|
+| `@tmmk/media-suite` | 套装入口，负责把两个 provider 挂起来。本身不含功能 |
+| `@tmmk/media-qwen` | Qwen 能力（多模态理解 / TTS / 音频生成） |
+| `@tmmk/media-runninghub` | RunningHub 能力（同步出图 / 工作流任务池） |
+
+三个包都在 npm 上，也可以单独安装其中任意一个。
 
 ## 开源许可
 
-本项目以 **Apache-2.0** 协议开源。详见根目录 [LICENSE](LICENSE)。
-
-## 从源码安装（开源使用者）
-
-把整个仓库 clone 下来后，各包保持原有目录结构即可用本地路径安装；`media-suite` 对 `media-qwen` / `media-runninghub` 的依赖是 `file:` 本地路径，clone 后按原目录放置即可正常 install。各包要求凭据请见各自 README（密钥统一放 `$DSH_HOME/.credentials.yaml` 的 `refs:` 段，不入仓库）。
+Apache-2.0，详见 [LICENSE](LICENSE)。

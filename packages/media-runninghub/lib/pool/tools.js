@@ -88,13 +88,22 @@ function createSubmitTool(ctx) {
         additionalProperties: false,
       },
       render: (_args, value) => {
-        const errors = Array.isArray(value.errors) && value.errors.length > 0
-          ? `，${value.errors.length} 个被拒绝`
-          : ''
-        return [{
-          type: 'text',
-          text: `已提交：批次 #${value.batchId}，${value.taskIds.length} 个任务${errors}（watcher: ${value.watcher}）`,
-        }]
+        const errors = Array.isArray(value.errors) ? value.errors : []
+        // Nothing was accepted: lead with the failure so the model cannot read
+        // this as a success, and always list the reasons. Silently collapsing
+        // every rejection into "N 个被拒绝" hid the actual cause (an unsupported
+        // parameter looked like a broken plugin).
+        if (value.taskIds.length === 0) {
+          const lines = [`提交失败：0 个任务被接受（${errors.length} 个被拒绝）`]
+          for (const e of errors) lines.push(`- ${e}`)
+          return [{ type: 'text', text: lines.join('\n') }]
+        }
+        const lines = [`已提交：批次 #${value.batchId}，${value.taskIds.length} 个任务（watcher: ${value.watcher}）`]
+        if (errors.length > 0) {
+          lines.push(`另有 ${errors.length} 个任务被拒绝：`)
+          for (const e of errors) lines.push(`- ${e}`)
+        }
+        return [{ type: 'text', text: lines.join('\n') }]
       },
     },
     async execute(args, exec) {
@@ -191,8 +200,34 @@ function createTypesTool() {
         additionalProperties: false,
       },
       render: (_args, value) => {
-        const lines = value.types.map((t) => `${t.typeId} — ${t.displayName}`)
-        return [{ type: 'text', text: `可用类型 ${value.types.length} 个：\n${lines.join('\n')}` }]
+        // The model picks parameter values from this text alone, so it has to
+        // carry the legal values, not just the type list. A bare "typeId —
+        // name" listing left enum params to guesswork, and a guessed value
+        // (e.g. "16:9" instead of "16:9 (Widescreen)") is accepted upstream,
+        // charged, and reported SUCCESS with no output.
+        const blocks = value.types.map((t) => {
+          const head = `${t.typeId} — ${t.displayName}`
+          const lines = [head]
+          if (t.description) lines.push(`  ${t.description}`)
+          for (const p of Array.isArray(t.params) ? t.params : []) {
+            const required = p.required ? '必填' : '可选'
+            const def = p.default !== undefined ? `，默认 ${JSON.stringify(p.default)}` : ''
+            lines.push(`  · ${p.name}（${p.type}，${required}${def}）${p.label ? ' — ' + p.label : ''}`)
+            // Enum values must be copied verbatim: the workflow node matches
+            // them exactly and does not reject a near miss.
+            if (Array.isArray(p.enum) && p.enum.length > 0) {
+              lines.push(`      合法值（必须原样传）：${p.enum.map((v) => JSON.stringify(v)).join(' / ')}`)
+            }
+            if (Array.isArray(p.accept) && p.accept.length > 0) {
+              lines.push(`      接受文件类型：${p.accept.join(' / ')}`)
+            }
+          }
+          return lines.join('\n')
+        })
+        return [{
+          type: 'text',
+          text: `可用类型 ${value.types.length} 个：\n\n${blocks.join('\n\n')}`,
+        }]
       },
     },
     async execute() {

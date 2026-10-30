@@ -1,6 +1,6 @@
 {
   "name": "@tmmk/media-runninghub",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "index.js",
   "engines": {
@@ -8,6 +8,20 @@
   },
   "packageManager": "pnpm@11.7.0",
   "description": "RunningHub 媒体工具：Nano Banana 2 图片生成与工作流任务池。",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "runninghub",
+    "image-generation",
+    "video-generation",
+    "workflow"
+  ],
+  "homepage": "https://github.com/do-nothing/media-suite/tree/main/packages/media-runninghub",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/do-nothing/media-suite.git",
+    "directory": "packages/media-runninghub"
+  },
   "license": "Apache-2.0",
   "exports": {
     ".": "./index.js",
