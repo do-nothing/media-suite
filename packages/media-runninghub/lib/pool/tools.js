@@ -87,6 +87,36 @@ function createSubmitTool(ctx) {
         properties: {
           batchId: { type: 'integer' },
           taskIds: { type: 'array', items: { type: 'integer' } },
+          submitted: { type: 'integer', description: '真正入队的任务数' },
+          status: { type: 'string', description: 'ok=全部提交；partial=部分提交；needs_input=缺参数未提交；rejected=全部被拒' },
+          needsInput: {
+            type: 'array',
+            description: '缺参数的任务清单；这些任务没有提交、也没有上传',
+            items: {
+              type: 'object',
+              properties: {
+                index: { type: 'integer' },
+                typeId: { type: 'string' },
+                label: { type: 'string' },
+                missing: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      param: { type: 'string' },
+                      label: { type: 'string' },
+                      why: { type: 'string' },
+                      accept: { type: 'array', items: { type: 'string' } },
+                    },
+                    required: ['param', 'label', 'why'],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ['index', 'typeId', 'label', 'missing'],
+              additionalProperties: false,
+            },
+          },
           watcher: { type: 'string', description: 'started=新起了 watcher；reused=复用了正在跑的' },
           errors: { type: 'array', items: { type: 'string' } },
         },
@@ -95,20 +125,46 @@ function createSubmitTool(ctx) {
       },
       render: (_args, value) => {
         const errors = Array.isArray(value.errors) ? value.errors : []
-        // Nothing was accepted: lead with the failure so the model cannot read
-        // this as a success, and always list the reasons. Silently collapsing
-        // every rejection into "N 个被拒绝" hid the actual cause (an unsupported
-        // parameter looked like a broken plugin).
-        if (value.taskIds.length === 0) {
-          const lines = [`提交失败：0 个任务被接受（${errors.length} 个被拒绝）`]
-          for (const e of errors) lines.push(`- ${e}`)
-          return [{ type: 'text', text: lines.join('\n') }]
+        const needsInput = Array.isArray(value.needsInput) ? value.needsInput : []
+        const lines = []
+
+        // needs_input leads, and says outright that nothing happened. Without
+        // that sentence the model tends to read any non-empty answer as "a
+        // submission went through" and reports a batch that does not exist.
+        if (needsInput.length > 0) {
+          lines.push(
+            `needs_input：${needsInput.length} 个任务还缺参数，`
+            + `没有提交、也没有上传任何文件（本次成功提交 ${Number(value.submitted) || 0} 个）。`,
+          )
+          for (const item of needsInput) {
+            lines.push(`- 任务 ${item.index + 1}「${item.label}」(${item.typeId}):`)
+            for (const miss of item.missing ?? []) {
+              const accept = Array.isArray(miss.accept) && miss.accept.length > 0
+                ? `，可选值：${miss.accept.map((v) => JSON.stringify(v)).join(' / ')}`
+                : ''
+              lines.push(`  · ${miss.param}（${miss.label}）：${miss.why}${accept}`)
+            }
+          }
+          lines.push('请把上面这些值补齐后重新调用本工具。')
         }
-        const lines = [`已提交：批次 #${value.batchId}，${value.taskIds.length} 个任务（watcher: ${value.watcher}）`]
+
+        // A hard rejection is separate from "you did not tell me enough".
         if (errors.length > 0) {
-          lines.push(`另有 ${errors.length} 个任务被拒绝：`)
+          if (value.taskIds.length === 0 && needsInput.length === 0) {
+            lines.push(`提交失败：0 个任务被接受（${errors.length} 个被拒绝）`)
+          } else {
+            lines.push(`另有 ${errors.length} 个任务被拒绝：`)
+          }
           for (const e of errors) lines.push(`- ${e}`)
         }
+
+        if (value.taskIds.length > 0) {
+          lines.push(
+            `已提交：批次 #${value.batchId}，${value.taskIds.length} 个任务`
+            + `（watcher: ${value.watcher}）`,
+          )
+        }
+
         return [{ type: 'text', text: lines.join('\n') }]
       },
     },
@@ -125,6 +181,10 @@ function createSubmitTool(ctx) {
       // Resolve every job: type lookup, param check, file upload.
       const resolved = []
       const errors = []
+      // One entry per job that could not be assembled, carrying the structured
+      // reason list. These are "tell the model what to collect", not failures:
+      // nothing was submitted and nothing was uploaded for them.
+      const needsInput = []
       for (const [index, job] of jobs.entries()) {
         try {
           const type = await getTaskType(String(job.type))
@@ -134,15 +194,18 @@ function createSubmitTool(ctx) {
             if (kind === 'url' || kind === 'rh_id') {
               return { rhFileName: value.trim(), input: { param: param.name, fieldName: param.fieldName, localPath: null, rhFileName: value.trim(), cached: true } }
             }
-            if (kind !== 'local') throw new Error(`param '${param.name}': 文件不存在或不可用: ${value}`)
+            if (kind !== 'local') throw new Error(`文件不存在或不可用: ${value}`)
             const upload = await uploadFileWithCache(ctx, site, value)
-            if (!upload.ok) throw new Error(`param '${param.name}': ${upload.errorMessage}`)
+            if (!upload.ok) throw new Error(upload.errorMessage)
             return {
               rhFileName: upload.fileName,
               input: { param: param.name, fieldName: param.fieldName, localPath: resolve(value), rhFileName: upload.fileName, cached: upload.cached === true },
             }
           })
-          if (!result.ok) throw new Error(result.error)
+          if (!result.ok) {
+            needsInput.push({ index, typeId: type.typeId, label: type.displayName, missing: result.missing })
+            continue
+          }
           resolved.push({
             typeId: type.typeId,
             workflowId: type.workflowId,
@@ -159,8 +222,24 @@ function createSubmitTool(ctx) {
         }
       }
 
+      // Nothing could be built and at least one job was merely under-specified:
+      // report needs_input rather than a failure, and say plainly that no task
+      // was created, so the model collects the values instead of assuming a
+      // submission happened.
+      if (resolved.length === 0 && needsInput.length > 0) {
+        return {
+          status: 'needs_input',
+          batchId: 0,
+          taskIds: [],
+          watcher: 'none',
+          submitted: 0,
+          needsInput,
+          ...(errors.length > 0 ? { errors } : {}),
+        }
+      }
+
       if (resolved.length === 0) {
-        return { batchId: 0, taskIds: [], watcher: 'none', errors }
+        return { status: 'rejected', batchId: 0, taskIds: [], watcher: 'none', submitted: 0, errors }
       }
 
       const { ids, batchId } = await store.enqueue(resolved, exec.agent?.id)
@@ -171,7 +250,15 @@ function createSubmitTool(ctx) {
         watcherAction = 'started'
       }
 
-      return { batchId, taskIds: ids, watcher: watcherAction, ...(errors.length > 0 ? { errors } : {}) }
+      return {
+        status: needsInput.length > 0 ? 'partial' : 'ok',
+        batchId,
+        taskIds: ids,
+        submitted: ids.length,
+        watcher: watcherAction,
+        ...(needsInput.length > 0 ? { needsInput } : {}),
+        ...(errors.length > 0 ? { errors } : {}),
+      }
     },
   }
 }
@@ -377,16 +464,38 @@ function resolveSessionCwd(ctx, exec) {
 }
 
 /** Upload with the ledger's cache: same path+size+mtime reuses the rh file. */
+/**
+ * Upload a local file, reusing the ledger's record when the same bytes were
+ * already uploaded to the same site.
+ *
+ * The key is the content hash plus the site, not the path. Uploads are bound to
+ * a site (a key can only upload to its own), so the site has to be in the key or
+ * a `.cn` file name would be replayed at `.ai` and fail. The hash rather than
+ * path+size+mtime means a file that was renamed, moved, or touched without its
+ * content changing still hits the cache — which is the common case when a user
+ * reorganises their inputs between runs.
+ */
 async function uploadFileWithCache(ctx, site, filePath) {
   const fs = await import('node:fs/promises')
-  const info = await fs.stat(filePath).catch(() => null)
-  const cacheKey = `${resolve(filePath)}:${info?.size ?? 0}:${Math.trunc(info?.mtimeMs ?? 0)}`
-  const cached = await store.cachedUpload(cacheKey)
-  if (cached) return { ok: true, fileName: cached, cached: true }
+  const crypto = await import('node:crypto')
+  let digest = null
+  try {
+    const bytes = await fs.readFile(filePath)
+    digest = crypto.createHash('sha256').update(bytes).digest('hex')
+  } catch {
+    // Unreadable file: fall through to the upload call, which reports the real
+    // reason (missing path, permissions) instead of a hash failure.
+    digest = null
+  }
+  const cacheKey = digest === null ? null : `sha256:${digest}:${site}`
+  if (cacheKey !== null) {
+    const cached = await store.cachedUpload(cacheKey)
+    if (cached) return { ok: true, fileName: cached, cached: true }
+  }
   const apiKey = await resolveJobsApiKey(ctx)
   if (!apiKey) return { ok: false, errorMessage: '未配置 RUNNINGHUB_JOBS_API_KEY' }
   const result = await uploadFile(apiKey, filePath, site)
-  if (result.ok) await store.rememberUpload(cacheKey, result.fileName)
+  if (result.ok && cacheKey !== null) await store.rememberUpload(cacheKey, result.fileName)
   return result
 }
 

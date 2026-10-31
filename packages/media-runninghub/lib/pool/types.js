@@ -125,20 +125,46 @@ export async function getTaskType(typeId) {
  * @param resolveFile - async (param, value) => rhFileName for file params.
  * @returns { ok, payload?, inputs?, error? }
  */
+/**
+ * Assemble one task's payload, or report exactly what is missing.
+ *
+ * The failure shape is deliberate: instead of one opaque string it returns a
+ * `missing` list with one entry per problem (`{ param, label, why, accept? }`),
+ * so the submit tool can hand the model a `needs_input` answer that says what
+ * to collect and — crucially — that nothing was submitted or uploaded. A bare
+ * error string let the model guess, and a guess either retries blindly or
+ * gives up; both waste the turn.
+ *
+ * @param t - the task type.
+ * @param params - the caller's params.
+ * @param resolveFile - uploads one media value and returns its RunningHub file
+ *   name plus the input record.
+ * @returns `{ ok: true, payload, inputs }` or `{ ok: false, missing }`.
+ */
 export async function buildPayload(t, params, resolveFile) {
   const unknown = Object.keys(params).filter((name) => !t.param(name))
   if (unknown.length > 0) {
     const known = t.params.map((p) => p.name).join(', ')
-    return { ok: false, error: `unknown params ${unknown.join(', ')} for type '${t.typeId}' (known: ${known})` }
+    return {
+      ok: false,
+      missing: unknown.map((name) => ({
+        param: name,
+        label: name,
+        why: `不是 '${t.typeId}' 的参数（可用：${known}）`,
+      })),
+    }
   }
   const nodes = []
   const inputs = []
+  const missing = []
   for (const p of t.params) {
     let value
     if (Object.hasOwn(params, p.name)) value = params[p.name]
     else if (p.default !== null && p.default !== undefined) value = p.default
-    else if (p.required) return { ok: false, error: `type '${t.typeId}': required param '${p.name}' missing` }
-    else continue
+    else if (p.required) {
+      missing.push({ param: p.name, label: p.label, why: '必填参数缺失' })
+      continue
+    } else continue
 
     // Enum values are matched exactly by the workflow node. An out-of-list value
     // is not rejected upstream: the task is accepted, charged, and reported
@@ -146,11 +172,13 @@ export async function buildPayload(t, params, resolveFile) {
     // nothing. Catching it here turns that silent loss into a clear message
     // that also lists the accepted values.
     if (Array.isArray(p.enum) && p.enum.length > 0 && !p.enum.includes(value)) {
-      return {
-        ok: false,
-        error: `type '${t.typeId}': param '${p.name}' got ${JSON.stringify(value)}, `
-          + `not one of ${p.enum.map((v) => JSON.stringify(v)).join(', ')}`,
-      }
+      missing.push({
+        param: p.name,
+        label: p.label,
+        why: `收到 ${JSON.stringify(value)}，不在允许值内`,
+        accept: p.enum,
+      })
+      continue
     }
 
     let fieldValue
@@ -162,7 +190,15 @@ export async function buildPayload(t, params, resolveFile) {
       if (typeof stripped === 'string' && (stripped === '' || stripped === 'None')) {
         fieldValue = stripped
       } else {
-        const resolved = await resolveFile(p, value)
+        let resolved
+        try {
+          resolved = await resolveFile(p, value)
+        } catch (error) {
+          // A media value that cannot be uploaded is as "missing" as an absent
+          // one: the model has to supply a usable path or URL.
+          missing.push({ param: p.name, label: p.label, why: `${error?.message ?? error}` })
+          continue
+        }
         fieldValue = resolved.rhFileName
         inputs.push(resolved.input)
       }
@@ -171,6 +207,7 @@ export async function buildPayload(t, params, resolveFile) {
     }
     nodes.push({ nodeId: p.nodeId, fieldName: p.fieldName, fieldValue })
   }
+  if (missing.length > 0) return { ok: false, missing }
   nodes.push(...t.fixedOverrides)
   return { ok: true, payload: { workflowId: t.workflowId, instanceType: t.instanceType, nodeInfoList: nodes }, inputs }
 }
