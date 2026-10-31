@@ -345,6 +345,7 @@ window.__ModuleLoader__.load({
         statusCancelled: '已取消',
         statusUnknown: '未知',
         stType: '类型',
+        stInstance: '实例',
         stId: '任务',
         stStatus: '状态',
         stCost: '费用',
@@ -467,6 +468,7 @@ window.__ModuleLoader__.load({
         statusCancelled: 'Cancelled',
         statusUnknown: 'Unknown',
         stType: 'Type',
+        stInstance: 'Instance',
         stId: 'Task',
         stStatus: 'Status',
         stCost: 'Cost',
@@ -578,6 +580,7 @@ window.__ModuleLoader__.load({
 .media-rh-table tr:last-child td { border-bottom: none; }
 .media-rh-table .is-right { text-align: right; }
 .media-rh-type { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-rh-instance { white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 11px; color: var(--dsw-alias-label-secondary); }
 .media-rh-output-link { color: var(--dsw-alias-brand-primary); text-decoration: none; }
 .media-rh-output-link:hover { text-decoration: underline; }
 .media-rh-saved { display: inline-block; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 11px; }
@@ -1578,6 +1581,7 @@ window.__ModuleLoader__.load({
                   h('thead', null,
                     h('tr', null,
                       h('th', null, t('stType')),
+                      h('th', null, t('stInstance')),
                       h('th', null, t('stId')),
                       h('th', null, t('stStatus')),
                       h('th', { className: 'is-right' }, t('stCost')),
@@ -1621,6 +1625,11 @@ window.__ModuleLoader__.load({
                     const msg = (rowMsg !== null && rowMsg.row === row.id) ? rowMsg : null
                     return h('tr', { key: String(row.id) },
                       h('td', { className: 'media-rh-type', title: row.type_id }, row.type_id || t('statusUnknown')),
+                      // The instance tier is what explains a task's price: a
+                      // `plus` run costs several times a `default` one for the
+                      // same workflow. `pool.py ls` shows it as-is, `-` when
+                      // the ledger has no value.
+                      h('td', { className: 'media-rh-instance' }, row.instance_type || '-'),
                       h('td', null, '#' + row.id),
                       h('td', null,
                         h('span', { className: 'media-rh-status-tag' },
