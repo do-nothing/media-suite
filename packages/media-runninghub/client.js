@@ -351,6 +351,7 @@ window.__ModuleLoader__.load({
         stCost: '费用',
         stOutput: '保存位置',
         stCreated: '创建时间',
+        stDuration: '时长',
         stActions: '操作',
         stNoCost: '—',
         stNoOutput: '—',
@@ -474,6 +475,7 @@ window.__ModuleLoader__.load({
         stCost: 'Cost',
         stOutput: 'Saved to',
         stCreated: 'Created',
+        stDuration: 'Duration',
         stActions: 'Actions',
         stNoCost: '—',
         stNoOutput: '—',
@@ -515,7 +517,7 @@ window.__ModuleLoader__.load({
 .media-rh-input:disabled { opacity: 0.5; cursor: not-allowed; }
 .media-rh-input::placeholder { color: var(--dsw-alias-label-secondary); }
 .media-rh-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.media-rh-btn { height: 28px; padding: 0 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-primary); background: transparent; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 8px; cursor: pointer; }
+.media-rh-btn { height: 28px; padding: 0 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-primary); background: transparent; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
 .media-rh-btn:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2); }
 .media-rh-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .media-rh-btn.is-primary { color: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); }
@@ -540,7 +542,7 @@ window.__ModuleLoader__.load({
 .media-rh-account-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .media-rh-account-error { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-state-error-primary); }
 .media-rh-surface { display: inline-flex; align-items: center; align-self: flex-start; padding: 2px; gap: 2px; background: var(--dsw-alias-bg-layer-1); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
-.media-rh-surface-btn { height: 26px; padding: 0 14px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); background: transparent; border: none; border-radius: 8px; cursor: pointer; }
+.media-rh-surface-btn { height: 26px; padding: 0 14px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); background: transparent; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
 .media-rh-surface-btn:hover:not(.is-active) { color: var(--dsw-alias-label-primary); }
 .media-rh-surface-btn.is-active { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); font-weight: 600; box-shadow: 0 0 0 0.5px var(--dsw-alias-border-l2); }
 .media-rh-input.is-invalid { border-color: var(--dsw-alias-state-error-primary); }
@@ -558,7 +560,7 @@ window.__ModuleLoader__.load({
 .media-rh-status-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .media-rh-status-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .media-rh-auto { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
-.media-rh-auto-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; font-size: 12px; line-height: 18px; border-radius: 8px; cursor: pointer; color: var(--dsw-alias-label-secondary); border: 0.5px solid var(--dsw-alias-border-l2); background: transparent; }
+.media-rh-auto-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; font-size: 12px; line-height: 18px; border-radius: 8px; cursor: pointer; color: var(--dsw-alias-label-secondary); border: 0.5px solid var(--dsw-alias-border-l2); background: transparent; white-space: nowrap; flex: 0 0 auto; }
 .media-rh-auto-chip:hover { background: var(--dsw-alias-bg-layer-2); }
 .media-rh-auto-chip.is-on { color: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); font-weight: 600; }
 .media-rh-counts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
@@ -566,7 +568,7 @@ window.__ModuleLoader__.load({
 .media-rh-count b { font-weight: 600; color: var(--dsw-alias-label-primary); font-variant-numeric: tabular-nums; }
 .media-rh-count .media-rh-account-dot { width: 6px; height: 6px; }
 .media-rh-batch-nav { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
-.media-rh-batch-nav-btn { height: 24px; padding: 0 8px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); background: transparent; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 6px; cursor: pointer; }
+.media-rh-batch-nav-btn { height: 24px; padding: 0 8px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); background: transparent; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 6px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
 .media-rh-batch-nav-btn:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2); }
 .media-rh-batch-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .media-rh-batch-jump { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; }
@@ -581,13 +583,14 @@ window.__ModuleLoader__.load({
 .media-rh-table .is-right { text-align: right; }
 .media-rh-type { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .media-rh-instance { white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 11px; color: var(--dsw-alias-label-secondary); }
+.media-rh-duration { white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 11px; color: var(--dsw-alias-label-secondary); }
 .media-rh-output-link { color: var(--dsw-alias-brand-primary); text-decoration: none; }
 .media-rh-output-link:hover { text-decoration: underline; }
 .media-rh-saved { display: inline-block; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 11px; }
 .media-rh-stall { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: 10px; border: 0.5px solid var(--dsw-alias-border-warn, #d9a13b); background: var(--dsw-alias-bg-warn, rgba(217, 161, 59, 0.10)); }
 .media-rh-stall-text { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-warn, #b8791f); }
 .media-rh-row-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
-.media-rh-row-actions-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.media-rh-row-actions-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; white-space: nowrap; }
 .media-rh-row-msg { max-width: 220px; font-size: 12px; line-height: 16px; white-space: normal; overflow-wrap: anywhere; }
 .media-rh-status-tag { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 `
@@ -798,9 +801,25 @@ window.__ModuleLoader__.load({
     function taskDuration(task, now) {
       const start = Number(task?.created_at)
       if (!Number.isFinite(start) || start <= 0) return { seconds: null, text: '-' }
+      const status = task?.status
+      const outstanding = status === 'PENDING' || status === 'DISPATCHED'
+      // Only an outstanding row measures against the clock. A terminal row
+      // without `finished_at` (written before that column existed) ends at its
+      // last write.
       const finished = Number(task?.finished_at)
-      const running = !Number.isFinite(finished) || finished <= 0
-      const end = running ? (Number(now) || Date.now()) : finished
+      const updated = Number(task?.updated_at)
+      const hasFinished = Number.isFinite(finished) && finished > 0
+      const running = outstanding
+      let end
+      if (running) {
+        end = Number(now) || Date.now()
+      } else if (hasFinished) {
+        end = finished
+      } else if (Number.isFinite(updated) && updated > 0) {
+        end = updated
+      } else {
+        return { seconds: null, text: '-' }
+      }
       const seconds = Math.max(0, Math.floor((end - start) / 1000))
       return { seconds, text: formatDuration(seconds) + (running ? '…' : '') }
     }
@@ -1580,14 +1599,15 @@ window.__ModuleLoader__.load({
                 h('table', { className: 'media-rh-table' },
                   h('thead', null,
                     h('tr', null,
+                      h('th', null, t('stId')),
+                      h('th', null, t('stCreated')),
                       h('th', null, t('stType')),
                       h('th', null, t('stInstance')),
-                      h('th', null, t('stId')),
                       h('th', null, t('stStatus')),
+                      h('th', null, t('stDuration')),
                       h('th', { className: 'is-right' }, t('stCost')),
-                      h('th', null, t('stOutput')),
-                      h('th', null, t('stCreated')),
-                      h('th', null, t('stActions'))
+                      h('th', null, t('stActions')),
+                      h('th', null, t('stOutput'))
                     )
                   ),
                   h('tbody', null, tasks.map((row) => {
@@ -1624,6 +1644,8 @@ window.__ModuleLoader__.load({
                     const busyType = busy ? busyRow.action : null
                     const msg = (rowMsg !== null && rowMsg.row === row.id) ? rowMsg : null
                     return h('tr', { key: String(row.id) },
+                      h('td', null, '#' + row.id),
+                      h('td', null, timeText),
                       // The cell shows the human name when the Host could resolve
                       // one, and keeps the raw id as the tooltip either way, so
                       // a type missing from the catalogue is still identifiable.
@@ -1634,16 +1656,17 @@ window.__ModuleLoader__.load({
                       // same workflow. `pool.py ls` shows it as-is, `-` when
                       // the ledger has no value.
                       h('td', { className: 'media-rh-instance' }, row.instance_type || '-'),
-                      h('td', null, '#' + row.id),
                       h('td', null,
                         h('span', { className: 'media-rh-status-tag' },
                           h('span', { className: 'media-rh-account-dot is-' + poolStatusTone(status), 'aria-hidden': 'true' }),
                           poolStatusLabel(t, status, row.rh_status)
                         )
                       ),
+                      // Elapsed time from submit to finish; a task still
+                      // outstanding measures against the clock and carries `…`,
+                      // matching what `pool.py ls` prints.
+                      h('td', { className: 'media-rh-duration' }, taskDuration(row, nowMs).text),
                       h('td', { className: 'is-right' }, costText !== null ? costText : h('span', { className: 'media-rh-muted' }, t('stNoCost'))),
-                      h('td', null, outCell),
-                      h('td', null, timeText),
                       h('td', null,
                         // Actions stack above their own status line. The message
                         // used to sit beside the buttons inside the same inline
@@ -1672,7 +1695,10 @@ window.__ModuleLoader__.load({
                             ? h('span', { className: 'media-rh-row-msg ' + (msg.kind === 'ok' ? 'is-ok' : 'is-error'), role: msg.kind === 'ok' ? 'status' : 'alert' }, msg.text)
                             : null
                         )
-                      )
+                      ),
+                      // Last column: the save path can be long, so it sits at the
+                      // end where the clipped tail is still readable.
+                      h('td', null, outCell)
                     )
                   }))
                 )
