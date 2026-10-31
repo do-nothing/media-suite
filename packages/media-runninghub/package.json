@@ -1,13 +1,11 @@
 {
   "name": "@tmmk/media-runninghub",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "main": "index.js",
-  "engines": {
-    "node": "^22.19.0 || >=24.0.0"
-  },
+  "engines": { "node": "^22.19.0 || >=24.0.0", "dsh": ">=0.2.1-rc.3" },
   "packageManager": "pnpm@11.7.0",
-  "description": "RunningHub 媒体工具：Nano Banana 2 图片生成与工作流任务池。",
+  "description": "RunningHub 云端 ComfyUI 工作流后台任务池：批量提交后自动派发、轮询、下载产物并唤醒会话，共享台账记录批次、费用、实例规格、时长与保存位置，右侧边栏实时看板。",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",

@@ -241,18 +241,27 @@ export function formatMoney(value, currency) {
 /**
  * Elapsed time for one task, matching what `pool.py ls` shows.
  *
+ * The span is submit-to-finish, not queue-to-finish: a row can wait minutes for
+ * a concurrency slot, and `pool.py` measures from `submitted_at`. A pending row
+ * has no submit time yet, so it measures from `created_at` — the honest answer
+ * for "how long has this been waiting".
+ *
  * Rows written before `finished_at` existed carry NULL there; for a terminal
  * row `updated_at` is the last write and is the best available end. Only a row
  * that is still outstanding measures against the clock and earns the `…`.
  *
  * @param task - a ledger row with `created_at`, `status`, and optionally
- *   `finished_at` / `updated_at`.
+ *   `submitted_at` / `finished_at` / `updated_at`.
  * @param now - the current epoch in milliseconds.
  * @returns `{ seconds, text }`; `text` carries a trailing `…` while the task is
- *   still running, and is `-` when the row has no start time.
+ *   still running, and is `-` when the row has no usable start.
  */
 export function taskDuration(task, now = Date.now()) {
-  const start = Number(task?.created_at)
+  const submitted = Number(task?.submitted_at)
+  const created = Number(task?.created_at)
+  // Prefer the real submit time; fall back to enqueue time for rows that predate
+  // the column (and for a row still waiting to be submitted at all).
+  const start = Number.isFinite(submitted) && submitted > 0 ? submitted : created
   if (!Number.isFinite(start) || start <= 0) return { seconds: null, text: '-' }
   const status = task?.status
   const outstanding = status === 'PENDING' || status === 'DISPATCHED'
@@ -302,9 +311,16 @@ export function formatDuration(seconds) {
  */
 export function staleSeconds(task, pollIntervalSeconds, now = Date.now()) {
   const status = task?.status
+  // A dispatched row is silent when its last poll stopped refreshing it; a
+  // pending row is silent when it has waited too long for a slot. `pool.py`
+  // anchors the pending case on the submit time when one exists.
+  const submitted = Number(task?.submitted_at)
+  const created = Number(task?.created_at)
   const anchor = status === 'DISPATCHED'
     ? Number(task?.updated_at)
-    : status === 'PENDING' ? Number(task?.created_at) : NaN
+    : status === 'PENDING'
+      ? (Number.isFinite(submitted) && submitted > 0 ? submitted : created)
+      : NaN
   if (!Number.isFinite(anchor) || anchor <= 0) return null
   const threshold = Math.max(60, (Number(pollIntervalSeconds) || 30) * 2)
   const gap = Math.floor((Number(now) - anchor) / 1000)

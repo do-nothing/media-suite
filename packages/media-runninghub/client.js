@@ -350,7 +350,7 @@ window.__ModuleLoader__.load({
         stStatus: '状态',
         stCost: '费用',
         stOutput: '保存位置',
-        stCreated: '创建时间',
+        stCreated: '发起时间',
         stDuration: '时长',
         stActions: '操作',
         stNoCost: '—',
@@ -474,7 +474,7 @@ window.__ModuleLoader__.load({
         stStatus: 'Status',
         stCost: 'Cost',
         stOutput: 'Saved to',
-        stCreated: 'Created',
+        stCreated: 'Submitted',
         stDuration: 'Duration',
         stActions: 'Actions',
         stNoCost: '—',
@@ -799,7 +799,11 @@ window.__ModuleLoader__.load({
 
     /** Elapsed time for one task; trailing `…` while it is still running. */
     function taskDuration(task, now) {
-      const start = Number(task?.created_at)
+      const submitted = Number(task?.submitted_at)
+      const created = Number(task?.created_at)
+      // Prefer the real submit time; fall back to enqueue time for rows that
+      // predate the column (and for a row still waiting to be submitted).
+      const start = Number.isFinite(submitted) && submitted > 0 ? submitted : created
       if (!Number.isFinite(start) || start <= 0) return { seconds: null, text: '-' }
       const status = task?.status
       const outstanding = status === 'PENDING' || status === 'DISPATCHED'
@@ -831,9 +835,15 @@ window.__ModuleLoader__.load({
      */
     function staleSeconds(task, pollIntervalSeconds, now) {
       const status = task?.status
+      // A dispatched row is silent when its last poll stopped refreshing it; a
+      // pending row is silent when it has waited too long for a slot.
+      const submitted = Number(task?.submitted_at)
+      const created = Number(task?.created_at)
       const anchor = status === 'DISPATCHED'
         ? Number(task?.updated_at)
-        : status === 'PENDING' ? Number(task?.created_at) : NaN
+        : status === 'PENDING'
+          ? (Number.isFinite(submitted) && submitted > 0 ? submitted : created)
+          : NaN
       if (!Number.isFinite(anchor) || anchor <= 0) return null
       const threshold = Math.max(60, (Number(pollIntervalSeconds) || 30) * 2)
       const gap = Math.floor(((Number(now) || Date.now()) - anchor) / 1000)
@@ -1637,8 +1647,13 @@ window.__ModuleLoader__.load({
                           title: saveFull,
                         }, saveText)
                       : h('span', { className: 'media-rh-muted media-rh-saved', title: saveText }, saveText)
-                    const timeText = Number(row.created_at) > 0
-                      ? new Date(Number(row.created_at)).toLocaleString()
+                    // 发起时间 is when the task actually reached RunningHub, not
+                    // when it joined our queue: a row can wait minutes for a
+                    // concurrency slot. Pre-migration rows have no
+                    // `submitted_at`, so they fall back to `created_at`.
+                    const startedAt = Number(row.submitted_at) > 0 ? Number(row.submitted_at) : Number(row.created_at)
+                    const timeText = startedAt > 0
+                      ? new Date(startedAt).toLocaleString()
                       : t('stNoOutput')
                     const busy = busyRow !== null && busyRow.row === row.id
                     const busyType = busy ? busyRow.action : null
