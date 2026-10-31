@@ -321,9 +321,8 @@ window.__ModuleLoader__.load({
         poolSaveFailed: '保存任务池设置失败：{message}',
         poolConcurrencyInvalid: '并发上限需为 1–100 的整数。',
         poolIntervalInvalid: '轮询间隔需为 5–600 的整数（秒）。',
-        cfgCollapse: '收起配置',
-        cfgExpand: '展开配置',
         statusTitle: '任务池运行状态',
+        poolTabTitle: 'RunningHub 任务池运行状态',
         statusIntro: '任务池是全局共享的：任何会话提交的任务都在这里排队、流转和结算。当前批次与手动刷新保持一致。',
         statusRefresh: '刷新',
         statusRefreshing: '刷新中…',
@@ -441,9 +440,8 @@ window.__ModuleLoader__.load({
         poolSaveFailed: 'Could not save task-pool settings: {message}',
         poolConcurrencyInvalid: 'Concurrency cap must be an integer from 1 to 100.',
         poolIntervalInvalid: 'Poll interval must be an integer from 5 to 600 seconds.',
-        cfgCollapse: 'Collapse config',
-        cfgExpand: 'Expand config',
         statusTitle: 'Task pool status',
+        poolTabTitle: 'RunningHub task pool status',
         statusIntro: 'The task pool is shared globally: tasks submitted from any session queue, run and settle here.',
         statusRefresh: 'Refresh',
         statusRefreshing: 'Refreshing…',
@@ -1324,6 +1322,11 @@ window.__ModuleLoader__.load({
         label, ' ', h('b', null, Number(counts[status]) || 0))
 
       return h('div', { className: 'media-rh-status-wrap' },
+        // The board also renders as its own right-sidebar tab, where the
+        // settings page's <style> never mounts, so it carries the stylesheet
+        // itself. Both places injecting the same text is harmless: the rules
+        // are identical and scoped by the media-rh- prefix.
+        h('style', null, CSS),
         h('div', { className: 'media-rh-status-head' },
           h('span', { className: 'media-rh-account-title' }, t('statusTitle')),
           h('div', { className: 'media-rh-status-toolbar' },
@@ -1505,7 +1508,6 @@ window.__ModuleLoader__.load({
       const [surface, setSurface] = React.useState('sync')
       const [cfg, setCfg] = React.useState(null)
       const [cfgMessage, setCfgMessage] = React.useState(null)
-      const [collapsed, setCollapsed] = React.useState(true)
 
       const [sync, setSync] = React.useState({ status: null, loading: false, error: null })
       const [jobs, setJobs] = React.useState({ status: null, loading: false, error: null })
@@ -1667,20 +1669,7 @@ window.__ModuleLoader__.load({
         h('style', null, CSS),
         h('h2', null, t('title')),
         h('p', { className: 'media-rh-intro' }, t('intro')),
-        h('div', {
-          className: 'media-rh-collapse' + (collapsed ? '' : ' is-open'),
-          role: 'button',
-          tabIndex: 0,
-          'aria-expanded': collapsed ? 'false' : 'true',
-          onClick: () => setCollapsed(c => !c),
-          onKeyDown: (event) => {
-            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCollapsed(c => !c) }
-          },
-        },
-          h('span', { className: 'media-rh-collapse-title' }, collapsed ? t('cfgExpand') : t('cfgCollapse')),
-          h('span', { className: 'media-rh-collapse-caret', 'aria-hidden': 'true' }, collapsed ? '▸' : '▾')
-        ),
-        collapsed ? null : h('div', { className: 'media-rh-collapse-body' },
+        h('div', { className: 'media-rh-collapse-body' },
           cfgMessage !== null
             ? h('p', { className: 'media-rh-msg ' + (cfgMessage.kind === 'ok' ? 'is-ok' : 'is-error'), role: cfgMessage.kind === 'ok' ? 'status' : 'alert' }, cfgMessage.text)
             : null,
@@ -1725,12 +1714,14 @@ window.__ModuleLoader__.load({
                   applyPoolFields,
                 })
               })
-        ),
-        h(PoolDashboard, { ctx, t })
+        )
+        // The task-pool board lives in the right sidebar as its own tab, so it
+        // is visible while the conversation keeps running. Only the key cards
+        // belong on this settings page.
       )
     }
 
-    exports.inject = ['slots', 'remote', 'remote.credentials', 'locale']
+    exports.inject = ['slots', 'remote', 'remote.credentials', 'locale', 'sidebarRightTabs']
 
     exports.apply = async function apply(ctx) {
       if (typeof ctx.remote.$mount === 'function') {
@@ -1758,6 +1749,43 @@ window.__ModuleLoader__.load({
       }, function MediaRunningHubSection() {
         return h(MediaRunningHubPage, { ctx })
       }))
+
+      // The task-pool board as its own right-sidebar tab.
+      //
+      // A tab type is two registrations sharing one `id`: a static definition in
+      // `ctx.sidebarRightTabs` saying what its tabs are, and a keyed slot
+      // registration supplying the body and the chip title. The definition also
+      // carries a `guide` box, so the tab can be opened from the sidebar's own
+      // guide page rather than only by code. Both registrations are wrapped in
+      // `ctx.effect`, so the type lives exactly as long as this plugin.
+      const POOL_TAB_ID = '@tmmk/media-runninghub/pool'
+      const POOL_TAB_KIND = 'media-runninghub-pool'
+      ctx.inject(['sidebarRightTabs', 'slots'], (injected) => {
+        const tabs = injected.sidebarRightTabs
+        if (tabs === undefined || typeof tabs.register !== 'function') return
+        ctx.effect(() => tabs.register({
+          id: POOL_TAB_ID,
+          kind: POOL_TAB_KIND,
+          title: () => t('poolTabTitle'),
+          guide: [{
+            order: 60,
+            title: () => t('poolTabTitle'),
+            description: () => t('statusIntro'),
+          }],
+        }), 'media-runninghub: pool tab type')
+        ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
+          name: 'sidebar.right.pane.tab',
+          key: POOL_TAB_ID,
+        }, function PoolTabBody() {
+          return h(PoolDashboard, { ctx, t })
+        })), 'media-runninghub: pool tab body')
+        ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
+          name: 'sidebar.right.pane.tab.title',
+          key: POOL_TAB_ID,
+        }, function PoolTabTitle() {
+          return t('poolTabTitle')
+        })), 'media-runninghub: pool tab title')
+      })
     }
 
     return module.exports
