@@ -403,6 +403,34 @@ export function ensurePoolWatcher(ctx) {
   startWatcherJob(ctx, siteOfConfig(ctx), undefined)
 }
 
+/**
+ * Restart the watcher when the ledger still holds outstanding work.
+ *
+ * The watcher is a `ctx.jobs` job, and the registry lives in the process: a
+ * DSH restart drops it while the rows stay PENDING or DISPATCHED. Nothing polls
+ * them any more, so they sit "running" forever and their outputs are never
+ * downloaded even though RunningHub finished them long ago.
+ *
+ * Called once from `apply()`, after the config is known. There is no submitter
+ * agent to own a registry job at that point, so the loop runs detached: it still
+ * dispatches, polls and downloads, it just cannot wake a session.
+ *
+ * @returns the number of outstanding rows it resumed for, 0 when nothing to do.
+ */
+export async function resumeOutstanding(ctx) {
+  let outstanding = []
+  try {
+    outstanding = await store.outstandingTasks()
+  } catch (error) {
+    ctx.logger?.warn?.('media-runninghub: could not read outstanding tasks: %o', error)
+    return 0
+  }
+  if (outstanding.length === 0) return 0
+  ensurePoolWatcher(ctx)
+  ctx.logger?.info?.('media-runninghub: resumed the pool watcher for %d outstanding task(s)', outstanding.length)
+  return outstanding.length
+}
+
 // Re-exports for the startWatcher wiring in index.js and the settings page's
 // pool-status controller.
 export { client, store, siteOfConfig, resolveJobsApiKey }

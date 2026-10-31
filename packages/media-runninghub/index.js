@@ -28,6 +28,7 @@ import { registerWorkflowSkill } from './lib/pool/skill.js'
 import {
   registerWorkflowTools,
   ensurePoolWatcher,
+  resumeOutstanding,
   client as rhClient,
   store as poolStore,
   siteOfConfig as poolSiteOfConfig,
@@ -436,6 +437,23 @@ function registerController(ctx) {
       }
       return { status: 'ok', newRowId: replayed.id, batchId: replayed.batchId, message: undefined }
     },
+    /**
+     * Re-start the pool watcher on demand.
+     *
+     * The board's stall warning tells the user a task stopped advancing; this
+     * is the button that actually fixes it. `apply()` already resumes on
+     * restart, so this covers the other case — a watcher that died while the
+     * process stayed up.
+     */
+    async poolResumeWatcher() {
+      try {
+        ensurePoolWatcher(ctx)
+      } catch (error) {
+        return { status: 'error', message: `watcher 未能启动：${error?.message ?? error}` }
+      }
+      const outstanding = await poolStore.outstandingTasks().catch(() => [])
+      return { status: 'ok', outstanding: outstanding.length, message: undefined }
+    },
   }
   Object.defineProperty(prototype, REMOTE_METHODS_KEY, {
     value: {
@@ -451,6 +469,7 @@ function registerController(ctx) {
         { method: 'poolStatus', invocation: { kind: 'direct' } },
         { method: 'poolCancel', invocation: { kind: 'direct' } },
         { method: 'poolResubmit', invocation: { kind: 'direct' } },
+        { method: 'poolResumeWatcher', invocation: { kind: 'direct' } },
       ],
     },
     configurable: true,
@@ -486,5 +505,13 @@ export function apply(ctx) {
     })
     registerWorkflowTools(ctx)
     registerWorkflowSkill(ctx)
+    // The watcher is a ctx.jobs job, so a DSH restart drops it while the rows
+    // stay PENDING or DISPATCHED. Without this, a task that was in flight when
+    // the app restarted is never polled again: the board keeps showing it as
+    // running and its outputs are never downloaded, even though RunningHub has
+    // already finished it.
+    ctx.effect(() => {
+      void resumeOutstanding(ctx)
+    }, 'media-runninghub: resume the pool watcher')
   }
 }

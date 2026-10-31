@@ -245,6 +245,19 @@ window.__ModuleLoader__.load({
             create: () => ({ parse: value => value }),
           },
         },
+        {
+          id: 'media-runninghub#mediaRunningHub/poolResumeWatcher',
+          service: 'mediaRunningHubController',
+          namespace: 'mediaRunningHub',
+          method: 'poolResumeWatcher',
+          invocation: { kind: 'direct' },
+          parameters: [],
+          result: {
+            mode: 'strict',
+            typeSymbol: 'media-runninghub#mediaRunningHub/poolResumeWatcher:result',
+            create: () => ({ parse: value => value }),
+          },
+        },
       ],
     }
 
@@ -325,6 +338,10 @@ window.__ModuleLoader__.load({
         poolTabTitle: 'RunningHub 任务池运行状态',
         statusIntro: '任务池是全局共享的：任何会话提交的任务都在这里排队、流转和结算。当前批次与手动刷新保持一致。',
         statusRefresh: '刷新',
+        statusResume: '恢复 watcher',
+        statusResuming: '正在恢复…',
+        statusResumeOk: '已重新拉起 watcher，正在轮询 {count} 个未完成任务。',
+        statusResumeFail: '恢复失败：{message}',
         statusRefreshing: '刷新中…',
         statusAuto: '自动刷新',
         statusAutoOn: '30s',
@@ -356,7 +373,7 @@ window.__ModuleLoader__.load({
         stNoCost: '—',
         stNoOutput: '—',
         stOutputOpen: '查看',
-        stallWarning: '任务 {ids} 已 {duration} 无推进，后台 watcher 疑似已停止。刷新可确认状态；若长时间不动，请检查 watcher 是否在运行。',
+        stallWarning: '任务 {ids} 已 {duration} 无推进，后台 watcher 可能已停止。刷新只重读台账、不会重新拉起 watcher；点「恢复 watcher」才会继续轮询这些任务。',
         stReplay: '再次生成',
         stCancel: '取消',
         stReplaying: '重放中…',
@@ -449,6 +466,10 @@ window.__ModuleLoader__.load({
         poolTabTitle: 'RunningHub task pool status',
         statusIntro: 'The task pool is shared globally: tasks submitted from any session queue, run and settle here.',
         statusRefresh: 'Refresh',
+        statusResume: 'Resume watcher',
+        statusResuming: 'Resuming…',
+        statusResumeOk: 'Watcher restarted; polling {count} outstanding task(s).',
+        statusResumeFail: 'Could not resume: {message}',
         statusRefreshing: 'Refreshing…',
         statusAuto: 'Auto refresh',
         statusAutoOn: '30s',
@@ -480,7 +501,7 @@ window.__ModuleLoader__.load({
         stNoCost: '—',
         stNoOutput: '—',
         stOutputOpen: 'View',
-        stallWarning: 'Task {ids} has not advanced for {duration}: the background watcher looks stopped. Refresh to confirm; if it stays stuck, check that the watcher is running.',
+        stallWarning: 'Task {ids} has not advanced for {duration}: the background watcher may have stopped. Refresh only re-reads the ledger and will not restart it; use "Resume watcher" to start polling these tasks again.',
         stReplay: 'Replay',
         stCancel: 'Cancel',
         stReplaying: 'Replaying…',
@@ -1308,6 +1329,9 @@ window.__ModuleLoader__.load({
       const [auto, setAuto] = React.useState(true)
       const [jumpText, setJumpText] = React.useState('')
       const [jumpError, setJumpError] = React.useState(false)
+      // { kind: 'ok' | 'error', text } after a "Resume watcher" click.
+      const [resumeMsg, setResumeMsg] = React.useState(null)
+      const [resuming, setResuming] = React.useState(false)
       const autoRef = React.useRef(true)
       autoRef.current = auto
       viewBatchRef.current = viewBatch
@@ -1385,6 +1409,36 @@ window.__ModuleLoader__.load({
         const pinned = viewBatchRef.current
         load(pinned === null ? undefined : pinned)
       }, [load])
+
+      /**
+       * Restart the pool watcher.
+       *
+       * Refresh only re-reads the ledger, so it cannot fix a task that stopped
+       * advancing. This asks the Host to start the loop again, then reloads so
+       * the board shows the rows that will now be polled.
+       */
+      const resumeWatcher = () => {
+        const remote = remoteRef.current
+        if (remote === undefined || typeof remote.poolResumeWatcher !== 'function') {
+          setResumeMsg({ kind: 'error', text: t('acctUnavailable') })
+          return
+        }
+        setResuming(true)
+        setResumeMsg(null)
+        remote.poolResumeWatcher()
+          .then((response) => {
+            const value = unwrap(response, 'resume was refused')
+            if (value === null || typeof value !== 'object' || value.status !== 'ok') {
+              const message = value && typeof value.message === 'string' ? value.message : '未知原因'
+              setResumeMsg({ kind: 'error', text: t('statusResumeFail', { message }) })
+              return
+            }
+            setResumeMsg({ kind: 'ok', text: t('statusResumeOk', { count: Number(value.outstanding) || 0 }) })
+            refresh()
+          })
+          .catch((err) => setResumeMsg({ kind: 'error', text: t('statusResumeFail', { message: messageOf(err) }) }))
+          .then(() => setResuming(false))
+      }
 
       React.useEffect(() => {
         load()
@@ -1521,9 +1575,22 @@ window.__ModuleLoader__.load({
               className: 'media-rh-btn',
               disabled: loading,
               onClick: refresh,
-            }, loading ? t('statusRefreshing') : t('statusRefresh'))
+            }, loading ? t('statusRefreshing') : t('statusRefresh')),
+            h('button', {
+              type: 'button',
+              className: 'media-rh-btn is-primary',
+              disabled: resuming,
+              onClick: resumeWatcher,
+              title: t('statusResume'),
+            }, resuming ? t('statusResuming') : t('statusResume'))
           )
         ),
+        resumeMsg !== null
+          ? h('p', {
+              className: 'media-rh-msg ' + (resumeMsg.kind === 'ok' ? 'is-ok' : 'is-error'),
+              role: resumeMsg.kind === 'ok' ? 'status' : 'alert',
+            }, resumeMsg.text)
+          : null,
         error !== null
           ? h('p', { className: 'media-rh-error', role: 'alert' }, t('statusLoadFailed', { message: error }))
           : null,

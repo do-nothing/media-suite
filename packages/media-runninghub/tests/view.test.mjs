@@ -400,3 +400,27 @@ test('a row with no start time reads as a dash', () => {
   assert.equal(taskDuration({ status: 'SUCCESS' }, 1_000_000_000).text, '-')
   assert.equal(taskDuration(null, 1_000_000_000).text, '-')
 })
+
+// --- watcher resume decision -----------------------------------------------
+
+test('outstandingOf counts only the two live states', () => {
+  // resumeOutstanding starts the watcher exactly when this is > 0, so the
+  // counting rule is what decides whether a restart recovers anything.
+  assert.equal(outstandingOf({ PENDING: 2, DISPATCHED: 3 }), 5)
+  assert.equal(outstandingOf({ PENDING: 0, DISPATCHED: 0, SUCCESS: 9 }), 0)
+  assert.equal(outstandingOf({}), 0)
+  assert.equal(outstandingOf(null), 0)
+})
+
+test('a drained ledger reports nothing to resume', () => {
+  // The real ledger shape after a clean run: every row terminal.
+  const counts = { total: 28, PENDING: 0, DISPATCHED: 0, SUCCESS: 19, FAILED: 8, SUBMIT_FAILED: 2, CANCELLED: 1 }
+  assert.equal(outstandingOf(counts), 0)
+})
+
+test('one in-flight row is enough to need a resume', () => {
+  // This is the restart case: the watcher is gone but one row is still
+  // DISPATCHED, so nothing will ever poll it without a fresh watcher.
+  const counts = { total: 28, PENDING: 0, DISPATCHED: 1, SUCCESS: 27 }
+  assert.equal(outstandingOf(counts), 1)
+})
