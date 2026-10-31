@@ -364,6 +364,10 @@ function createStatusTool() {
       schema: {
         type: 'object',
         properties: {
+          // `poolView` always stamps `status: 'ok'`; without it declared here,
+          // `additionalProperties: false` rejects the whole reply and the tool
+          // call fails with a schema error instead of returning the board.
+          status: { type: 'string' },
           currentBatchId: { type: 'integer' },
           latestBatchId: { type: 'integer' },
           batches: { type: 'array', items: { type: 'integer' } },
