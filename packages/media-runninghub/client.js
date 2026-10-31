@@ -335,8 +335,10 @@ window.__ModuleLoader__.load({
         batchNone: '已排空',
         batchLabel: '批次 #{id}',
         countsInFlight: '在飞',
-        statusPending: '排队',
+        statusPending: '待提交',
         statusDispatched: '运行中',
+        statusRhQueued: '排队中',
+        statusSubmitted: '已提交',
         statusSuccess: '成功',
         statusFailed: '失败',
         statusSubmitFailed: '提交失败',
@@ -455,8 +457,10 @@ window.__ModuleLoader__.load({
         batchNone: 'drained',
         batchLabel: 'Batch #{id}',
         countsInFlight: 'in flight',
-        statusPending: 'Queued',
+        statusPending: 'Pending submit',
         statusDispatched: 'Running',
+        statusRhQueued: 'Queued at RunningHub',
+        statusSubmitted: 'Submitted',
         statusSuccess: 'Succeeded',
         statusFailed: 'Failed',
         statusSubmitFailed: 'Submit failed',
@@ -654,10 +658,31 @@ window.__ModuleLoader__.load({
     }
 
     /** The display label of one ledger task status. */
-    function poolStatusLabel(t, status) {
+    /**
+     * The status chip's text.
+     *
+     * A dispatched task is only "running" once RunningHub says so; while it sits
+     * in RunningHub's own queue the truthful label is 排队中, and before it is
+     * ever submitted the row is 待提交 rather than 排队 — the two queues are
+     * different and confusing them hides why a task has not started.
+     *
+     * @param t - the bound translator.
+     * @param status - the ledger status.
+     * @param rhStatus - RunningHub's own status, when known.
+     */
+    function poolStatusLabel(t, status, rhStatus) {
       switch (status) {
         case 'PENDING': return t('statusPending')
-        case 'DISPATCHED': return t('statusDispatched')
+        case 'DISPATCHED': {
+          // Three readings for one ledger state. QUEUED is RunningHub's queue;
+          // RUNNING is real work; and an empty `rh_status` means we dispatched
+          // but never learned what RunningHub thinks, which is its own answer
+          // ("已提交") rather than a guess at "运行中".
+          const rh = String(rhStatus ?? '').toUpperCase()
+          if (rh === 'QUEUED') return t('statusRhQueued')
+          if (rh === 'RUNNING') return t('statusDispatched')
+          return t('statusSubmitted')
+        }
         case 'SUCCESS': return t('statusSuccess')
         case 'FAILED': return t('statusFailed')
         case 'SUBMIT_FAILED': return t('statusSubmitFailed')
@@ -667,6 +692,13 @@ window.__ModuleLoader__.load({
     }
 
     /** Dot tone for one ledger task status. */
+    /**
+     * The status chip's colour band.
+     *
+     * Both outstanding local states are active work in progress — 待提交 is
+     * waiting for a concurrency slot, 已提交/排队中/运行中 is out at RunningHub —
+     * so they share the warn band. Only a failure is red.
+     */
     function poolStatusTone(status) {
       if (status === 'SUCCESS') return 'ok'
       if (status === 'PENDING' || status === 'DISPATCHED') return 'warn'
@@ -1593,7 +1625,7 @@ window.__ModuleLoader__.load({
                       h('td', null,
                         h('span', { className: 'media-rh-status-tag' },
                           h('span', { className: 'media-rh-account-dot is-' + poolStatusTone(status), 'aria-hidden': 'true' }),
-                          poolStatusLabel(t, status)
+                          poolStatusLabel(t, status, row.rh_status)
                         )
                       ),
                       h('td', { className: 'is-right' }, costText !== null ? costText : h('span', { className: 'media-rh-muted' }, t('stNoCost'))),
