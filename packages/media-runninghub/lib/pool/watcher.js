@@ -153,10 +153,20 @@ export function startWatcher(ctx, site, cfg, agent) {
     done.catch(() => {})
     return undefined
   }
+  // A registry job needs an owner agent: it is the permission fence and the
+  // session a `job/settled` wake goes to. The settings page's replay button
+  // calls this from a Remote method, which has no agent, and `jobs.start`
+  // refuses with "no job controller serves this agent". With no agent there is
+  // no session to wake, so run the loop detached instead — the pool still
+  // drains and the board shows the results on its next refresh.
+  if (agent?.id === undefined) {
+    done.catch(() => {})
+    return undefined
+  }
   job = jobs.start({
     kind: 'runninghub-pool',
     label: 'RunningHub 任务池 watcher',
-    owner: agent?.id,
+    owner: agent.id,
     run(handle) {
       job = { ...job, handle }
       return hooks

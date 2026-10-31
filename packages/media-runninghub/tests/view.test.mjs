@@ -12,12 +12,16 @@ import assert from 'node:assert/strict'
 
 import {
   POOL_VIEW_KEYS,
+  SAVE_PATH_WIDTH,
   anchorBatchOf,
   batchNav,
+  clipFront,
   countByStatus,
+  displayWidth,
   formatCost,
   formatDuration,
   formatMoney,
+  formatSavePath,
   isBatchDetail,
   missingViewKeys,
   outstandingOf,
@@ -248,4 +252,79 @@ test('a reply missing batches or latestBatchId is reported', () => {
 
 test('a null reply misses every key', () => {
   assert.deepEqual(missingViewKeys(null), POOL_VIEW_KEYS)
+})
+
+// --- the 保存位置 cell -----------------------------------------------------
+
+test('the saved-path cell is built from local paths only', () => {
+  // Remote URLs are deliberately ignored: "saved where" means a file the user
+  // can open, and a row whose download failed has no local path.
+  const saved = formatSavePath([
+    { ok: 1, path: 'E:\\out\\a.png', url: 'https://example.com/a.png', node_id: '461' },
+  ])
+  assert.equal(saved, 'E:\\out\\a.png')
+})
+
+test('a task with no outputs reads as a dash', () => {
+  assert.equal(formatSavePath([]), '-')
+  assert.equal(formatSavePath(undefined), '-')
+})
+
+test('a task whose downloads all failed says so', () => {
+  // `ok` is the SQLite integer 0/1, which is why a strict `=== true` test
+  // matched nothing and every row once read "—".
+  assert.equal(formatSavePath([{ ok: 0, path: null, error: 'empty download' }]), '下载失败')
+})
+
+test('a failed row beside a saved one still shows the saved path', () => {
+  const text = formatSavePath([
+    { ok: 0, path: null, node_id: '13' },
+    { ok: 1, path: 'E:\\out\\ok.flac', node_id: '4' },
+  ])
+  assert.ok(text.includes('ok.flac'))
+  assert.ok(!text.includes('下载失败'))
+})
+
+test('multiple saved outputs are node-tagged and joined', () => {
+  const text = formatSavePath([
+    { ok: 1, path: 'E:\\out\\vocals.flac', node_id: '4' },
+    { ok: 1, path: 'E:\\out\\instruments.flac', node_id: '5' },
+  ])
+  assert.equal(text, '4:E:\\out\\vocals.flac ; 5:E:\\out\\instruments.flac')
+})
+
+test('a single saved output is not node-tagged', () => {
+  const text = formatSavePath([{ ok: 1, path: 'E:\\out\\one.mp4', node_id: '131' }])
+  assert.ok(!text.includes('131:'))
+})
+
+test('a long path is clipped from the front, keeping the tail', () => {
+  const full = 'E:\\2026\\dsh-plugins\\output\\media\\runninghub\\batch-12\\21_214_0.mp4'
+  const clipped = clipFront(full, 30)
+  assert.equal(displayWidth(clipped), 30)
+  assert.ok(clipped.startsWith('…'))
+  assert.ok(clipped.endsWith('21_214_0.mp4'))
+  assert.ok(clipped.length < full.length)
+})
+
+test('a path that fits is returned untouched', () => {
+  const short = 'E:\\out\\a.png'
+  assert.equal(clipFront(short, 48), short)
+  assert.equal(clipFront(short, 1000), short)
+})
+
+test('the default clip budget matches pool.py', () => {
+  assert.equal(SAVE_PATH_WIDTH, 48)
+})
+
+test('display width counts CJK as two columns', () => {
+  assert.equal(displayWidth('ab'), 2)
+  assert.equal(displayWidth('中文'), 4)
+  assert.equal(displayWidth(''), 0)
+})
+
+test('clipping respects display width for CJK tails', () => {
+  const clipped = clipFront('E:\\输出\\批次\\结果.png', 10)
+  assert.equal(displayWidth(clipped), 10)
+  assert.ok(clipped.endsWith('结果.png') || clipped.endsWith('.png'))
 })

@@ -42,8 +42,9 @@ function loadClientLogic() {
   const block = extractBlock()
   // The block declares functions and one const; run it and hand back the names.
   const factory = new Function(`${block}
-    return { POOL_VIEW_KEYS, anchorBatchOf, isBatchDetail, batchNav, countByStatus,
-             outstandingOf, formatDuration, taskDuration, staleSeconds }
+    return { POOL_VIEW_KEYS, SAVE_PATH_WIDTH, anchorBatchOf, isBatchDetail, batchNav, countByStatus,
+             outstandingOf, formatDuration, taskDuration, staleSeconds,
+             clipFront, displayWidth, formatSavePath }
   `)
   return factory()
 }
@@ -52,10 +53,12 @@ const client = loadClientLogic()
 
 test('the block exists and exposes the expected helpers', () => {
   for (const name of ['anchorBatchOf', 'isBatchDetail', 'batchNav', 'countByStatus',
-    'outstandingOf', 'formatDuration', 'taskDuration', 'staleSeconds']) {
+    'outstandingOf', 'formatDuration', 'taskDuration', 'staleSeconds',
+    'clipFront', 'displayWidth', 'formatSavePath']) {
     assert.equal(typeof client[name], 'function', `${name} must be declared in client.js`)
   }
   assert.deepEqual(client.POOL_VIEW_KEYS, view.POOL_VIEW_KEYS)
+  assert.equal(client.SAVE_PATH_WIDTH, view.SAVE_PATH_WIDTH)
 })
 
 test('anchorBatchOf matches', () => {
@@ -159,5 +162,34 @@ test('staleSeconds matches', () => {
       view.staleSeconds(task, poll, now),
       JSON.stringify({ task, poll }),
     )
+  }
+})
+
+test('clipFront and displayWidth match', () => {
+  const cases = [
+    ['E:\\2026\\dsh-plugins\\output\\media\\runninghub\\batch-12\\21_214_0.mp4', 30],
+    ['E:\\out\\a.png', 48],
+    ['E:\\输出\\批次\\结果.png', 10],
+    ['', 10],
+    ['abcdef', 1],
+    ['abcdef', 100],
+  ]
+  for (const [text, width] of cases) {
+    assert.equal(client.clipFront(text, width), view.clipFront(text, width), JSON.stringify({ text, width }))
+    assert.equal(client.displayWidth(text), view.displayWidth(text), JSON.stringify(text))
+  }
+})
+
+test('formatSavePath matches', () => {
+  const cases = [
+    [],
+    [{ ok: 1, path: 'E:\\out\\a.png', url: 'https://x/a.png', node_id: '461' }],
+    [{ ok: 0, path: null, error: 'empty download' }],
+    [{ ok: 0, path: null, node_id: '13' }, { ok: 1, path: 'E:\\out\\ok.flac', node_id: '4' }],
+    [{ ok: 1, path: 'E:\\out\\vocals.flac', node_id: '4' }, { ok: 1, path: 'E:\\out\\instruments.flac', node_id: '5' }],
+    [{ ok: 1, path: 'E:\\out\\one.mp4', node_id: '131' }],
+  ]
+  for (const outputs of cases) {
+    assert.equal(client.formatSavePath(outputs), view.formatSavePath(outputs), JSON.stringify(outputs))
   }
 })

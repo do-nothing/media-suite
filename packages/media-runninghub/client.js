@@ -346,12 +346,13 @@ window.__ModuleLoader__.load({
         stId: '任务',
         stStatus: '状态',
         stCost: '费用',
-        stOutput: '产物',
+        stOutput: '保存位置',
         stCreated: '创建时间',
         stActions: '操作',
         stNoCost: '—',
         stNoOutput: '—',
         stOutputOpen: '查看',
+        stallWarning: '任务 {ids} 已 {duration} 无推进，后台 watcher 疑似已停止。刷新可确认状态；若长时间不动，请检查 watcher 是否在运行。',
         stReplay: '再次生成',
         stCancel: '取消',
         stReplaying: '重放中…',
@@ -465,12 +466,13 @@ window.__ModuleLoader__.load({
         stId: 'Task',
         stStatus: 'Status',
         stCost: 'Cost',
-        stOutput: 'Output',
+        stOutput: 'Saved to',
         stCreated: 'Created',
         stActions: 'Actions',
         stNoCost: '—',
         stNoOutput: '—',
         stOutputOpen: 'View',
+        stallWarning: 'Task {ids} has not advanced for {duration}: the background watcher looks stopped. Refresh to confirm; if it stays stuck, check that the watcher is running.',
         stReplay: 'Replay',
         stCancel: 'Cancel',
         stReplaying: 'Replaying…',
@@ -574,8 +576,12 @@ window.__ModuleLoader__.load({
 .media-rh-type { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .media-rh-output-link { color: var(--dsw-alias-brand-primary); text-decoration: none; }
 .media-rh-output-link:hover { text-decoration: underline; }
+.media-rh-saved { display: inline-block; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 11px; }
+.media-rh-stall { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: 10px; border: 0.5px solid var(--dsw-alias-border-warn, #d9a13b); background: var(--dsw-alias-bg-warn, rgba(217, 161, 59, 0.10)); }
+.media-rh-stall-text { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-warn, #b8791f); }
 .media-rh-row-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
-.media-rh-row-msg { max-width: 200px; font-size: 12px; line-height: 16px; }
+.media-rh-row-actions-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.media-rh-row-msg { max-width: 220px; font-size: 12px; line-height: 16px; white-space: normal; overflow-wrap: anywhere; }
 .media-rh-status-tag { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 `
 
@@ -778,6 +784,78 @@ window.__ModuleLoader__.load({
       const threshold = Math.max(60, (Number(pollIntervalSeconds) || 30) * 2)
       const gap = Math.floor(((Number(now) || Date.now()) - anchor) / 1000)
       return gap > threshold ? gap : null
+    }
+
+    /** Display columns a save-path cell may occupy, as `pool.py` uses. */
+    const SAVE_PATH_WIDTH = 48
+
+    /** Whether an output row counts as saved (the ledger stores 0/1, not a boolean). */
+    function outputOk(row) {
+      return row.ok !== 0 && row.ok !== false && row.ok !== undefined && row.ok !== null
+    }
+
+    /** Width of a string in display columns; full-width characters count two. */
+    function displayWidth(text) {
+      let total = 0
+      for (const ch of [...(typeof text === 'string' ? text : '')]) {
+        const code = ch.codePointAt(0)
+        total += isWideCode(code) ? 2 : 1
+      }
+      return total
+    }
+
+    /** Whether a code point occupies two display columns. */
+    function isWideCode(code) {
+      if (!Number.isFinite(code)) return false
+      return (
+        (code >= 0x1100 && code <= 0x115F) ||
+        (code >= 0x2E80 && code <= 0x303E) ||
+        (code >= 0x3041 && code <= 0x33FF) ||
+        (code >= 0x3400 && code <= 0x4DBF) ||
+        (code >= 0x4E00 && code <= 0x9FFF) ||
+        (code >= 0xA000 && code <= 0xA4CF) ||
+        (code >= 0xAC00 && code <= 0xD7A3) ||
+        (code >= 0xF900 && code <= 0xFAFF) ||
+        (code >= 0xFE30 && code <= 0xFE4F) ||
+        (code >= 0xFF00 && code <= 0xFF60) ||
+        (code >= 0xFFE0 && code <= 0xFFE6) ||
+        (code >= 0x1F300 && code <= 0x1F64F) ||
+        (code >= 0x1F900 && code <= 0x1F9FF) ||
+        (code >= 0x20000 && code <= 0x3FFFD)
+      )
+    }
+
+    /** Clip a path from the front, keeping the tail: `…<tail>`. */
+    function clipFront(text, width) {
+      const value = typeof text === 'string' ? text : ''
+      const budget = Math.max(1, Number(width) || SAVE_PATH_WIDTH)
+      if (displayWidth(value) <= budget) return value
+      const room = budget - 1
+      let tail = ''
+      const chars = [...value]
+      for (let i = chars.length - 1; i >= 0; i--) {
+        const next = chars[i] + tail
+        if (displayWidth(next) > room) break
+        tail = next
+      }
+      return `…${tail}`
+    }
+
+    /** The 保存位置 cell: local paths only, tail-clipped, node-tagged when multiple. */
+    function formatSavePath(outputs, width) {
+      const rows = Array.isArray(outputs) ? outputs : []
+      const saved = rows
+        .filter((row) => row && outputOk(row) && typeof row.path === 'string' && row.path.length > 0)
+        .map((row) => ({ node: String(row.node_id ?? 'out'), path: row.path }))
+      if (saved.length === 0) {
+        return rows.some((row) => row && !outputOk(row)) ? '下载失败' : '-'
+      }
+      const multi = saved.length > 1
+      const parts = saved.map((entry) => {
+        const clipped = clipFront(entry.path, width ?? SAVE_PATH_WIDTH)
+        return multi ? `${entry.node}:${clipped}` : clipped
+      })
+      return parts.join(' ; ')
     }
     // --- end pure view logic -------------------------------------------------
 
@@ -1170,6 +1248,9 @@ window.__ModuleLoader__.load({
       autoRef.current = auto
       viewBatchRef.current = viewBatch
       const loadSeq = React.useRef(0)
+      // One clock reading per render: the stale gap and the durations below all
+      // measure against the same instant, so they cannot disagree by a second.
+      const nowMs = Date.now()
 
       /**
        * Load the pool status. With `target` set it loads that batch's detail
@@ -1314,8 +1395,39 @@ window.__ModuleLoader__.load({
           .then(() => setBusyRow(null))
       }
 
+      // The stale threshold depends on the configured poll cadence, which the
+      // board does not otherwise need. It reads it once per mount through its
+      // own ref-held service handle; a missing answer falls back to the default.
+      const pollSecondsRef = React.useRef(30)
+      React.useEffect(() => {
+        const remote = remoteRef.current
+        if (remote === undefined || typeof remote.configStatus !== 'function') return
+        let live = true
+        remote.configStatus()
+          .then((response) => {
+            if (!live) return
+            const value = unwrap(response, 'config status was refused')
+            const poll = Number(value?.pollIntervalSeconds)
+            if (Number.isFinite(poll) && poll > 0) pollSecondsRef.current = poll
+          })
+          .catch(() => { /* keep the default */ })
+        return () => { live = false }
+      }, [])
+
       const cancelable = (status) => status === 'PENDING' || status === 'DISPATCHED'
       const replayable = (status) => status === 'SUCCESS' || status === 'FAILED' || status === 'SUBMIT_FAILED' || status === 'CANCELLED'
+
+      // A task that should be advancing but has not been touched for two poll
+      // intervals (and at least a minute) means the detached watcher is likely
+      // gone while RunningHub may already be done. `pool.py ls` prints a warning
+      // for exactly this; without it the board shows "运行中" forever and the
+      // user waits on nothing.
+      const pollSeconds = pollSecondsRef.current || 30
+      const stalled = tasks
+        .map((row) => ({ row, gap: staleSeconds(row, pollSeconds, nowMs) }))
+        .filter((entry) => entry.gap !== null)
+      const stalledIds = stalled.map((entry) => '#' + entry.row.id)
+      const stalledGap = stalled.reduce((max, entry) => Math.max(max, entry.gap), 0)
 
       const countChip = (status, label) => h('span', { className: 'media-rh-count' },
         h('span', { className: 'media-rh-account-dot is-' + poolStatusTone(status), 'aria-hidden': 'true' }),
@@ -1350,6 +1462,15 @@ window.__ModuleLoader__.load({
         ),
         error !== null
           ? h('p', { className: 'media-rh-error', role: 'alert' }, t('statusLoadFailed', { message: error }))
+          : null,
+        stalled.length > 0
+          ? h('div', { className: 'media-rh-stall', role: 'alert' },
+              h('span', { className: 'media-rh-stall-text' },
+                t('stallWarning', {
+                  ids: stalledIds.join(' '),
+                  duration: formatDuration(stalledGap),
+                }))
+            )
           : null,
         pool === null && loading
           ? h('p', { className: 'media-rh-muted' }, t('acctLoading'))
@@ -1437,17 +1558,29 @@ window.__ModuleLoader__.load({
                     const status = row.status || 'PENDING'
                     const costText = formatCost(row.costs)
                     const outputs = Array.isArray(row.outputs) ? row.outputs : []
-                    const firstOut = outputs.find((o) => o && o.ok === true && (o.path || o.url))
-                    const outLink = firstOut
+                    // `ok` comes back as the SQLite integer 0/1, not a boolean,
+                    // so a strict `=== true` matched nothing and every row read
+                    // "—". A download that failed is stored as 0 with its error,
+                    // so anything else counts as usable.
+                    const saveText = formatSavePath(outputs)
+                    // The cell shows the clipped path the way `pool.py ls` does,
+                    // and the tooltip carries every full path untruncated — the
+                    // cell is 48 columns, the hover is not. Multi-output tasks
+                    // list one full path per line.
+                    const savedRows = outputs
+                      .filter((o) => o && outputOk(o) && typeof o.path === 'string' && o.path.length > 0)
+                    const saveFull = savedRows.map((o) => o.path).join('\n')
+                    const firstSaved = savedRows[0]
+                    const outCell = firstSaved
                       ? h('a', {
-                          className: 'media-rh-output-link',
-                          href: firstOut.path || firstOut.url,
-                          target: firstOut.path ? '_self' : '_blank',
+                          className: 'media-rh-output-link media-rh-saved',
+                          href: firstSaved.path,
+                          target: '_self',
                           rel: 'noreferrer',
-                          onClick: firstOut.path ? (event) => event.preventDefault() : undefined,
-                          title: firstOut.path || firstOut.url,
-                        }, t('stOutputOpen'))
-                      : (outputs.length > 0 ? h('span', { className: 'media-rh-muted' }, t('stNoOutput')) : h('span', { className: 'media-rh-muted' }, t('stNoOutput')))
+                          onClick: (event) => event.preventDefault(),
+                          title: saveFull,
+                        }, saveText)
+                      : h('span', { className: 'media-rh-muted media-rh-saved', title: saveText }, saveText)
                     const timeText = Number(row.created_at) > 0
                       ? new Date(Number(row.created_at)).toLocaleString()
                       : t('stNoOutput')
@@ -1464,30 +1597,36 @@ window.__ModuleLoader__.load({
                         )
                       ),
                       h('td', { className: 'is-right' }, costText !== null ? costText : h('span', { className: 'media-rh-muted' }, t('stNoCost'))),
-                      h('td', null, outLink),
+                      h('td', null, outCell),
                       h('td', null, timeText),
                       h('td', null,
-                        h('span', { className: 'media-rh-row-actions' },
-                          replayable(status)
-                            ? h('button', {
-                                type: 'button',
-                                className: 'media-rh-btn is-primary',
-                                disabled: busy,
-                                onClick: () => replay(row),
-                              }, busyType === 'replay' ? t('stReplaying') : t('stReplay'))
-                            : null,
-                          cancelable(status)
-                            ? h('button', {
-                                type: 'button',
-                                className: 'media-rh-btn is-danger',
-                                disabled: busy,
-                                onClick: () => cancelRow(row),
-                              }, busyType === 'cancel' ? t('stCancelling') : t('stCancel'))
+                        // Actions stack above their own status line. The message
+                        // used to sit beside the buttons inside the same inline
+                        // row, so a long failure text pushed the row wide instead
+                        // of wrapping under it.
+                        h('div', { className: 'media-rh-row-actions-cell' },
+                          h('span', { className: 'media-rh-row-actions' },
+                            replayable(status)
+                              ? h('button', {
+                                  type: 'button',
+                                  className: 'media-rh-btn is-primary',
+                                  disabled: busy,
+                                  onClick: () => replay(row),
+                                }, busyType === 'replay' ? t('stReplaying') : t('stReplay'))
+                              : null,
+                            cancelable(status)
+                              ? h('button', {
+                                  type: 'button',
+                                  className: 'media-rh-btn is-danger',
+                                  disabled: busy,
+                                  onClick: () => cancelRow(row),
+                                }, busyType === 'cancel' ? t('stCancelling') : t('stCancel'))
+                              : null
+                          ),
+                          msg !== null
+                            ? h('span', { className: 'media-rh-row-msg ' + (msg.kind === 'ok' ? 'is-ok' : 'is-error'), role: msg.kind === 'ok' ? 'status' : 'alert' }, msg.text)
                             : null
-                        ),
-                        msg !== null
-                          ? h('span', { className: 'media-rh-row-msg ' + (msg.kind === 'ok' ? 'is-ok' : 'is-error'), role: msg.kind === 'ok' ? 'status' : 'alert' }, msg.text)
-                          : null
+                        )
                       )
                     )
                   }))

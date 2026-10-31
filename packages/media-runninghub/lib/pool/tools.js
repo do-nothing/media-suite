@@ -21,6 +21,11 @@ import { startWatcher } from './watcher.js'
 // Whatever session started the watcher owns it; later submitters reuse it.
 let activeWatcher = null
 
+// True while a watcher started without an owner agent (a Remote-triggered
+// replay) is polling. It has no registry job id and never settles, so this flag
+// is the only guard against starting a second poller over the same ledger.
+let detachedWatcher = false
+
 /** Parse `cost_json` text from an overview row; null when not valid JSON. */
 function safeJson(text) {
   if (typeof text !== 'string' || text.length === 0) return null
@@ -328,8 +333,16 @@ function createStatusTool() {
 /** Start the single global watcher owned by the given agent. */
 function startWatcherJob(ctx, site, agent) {
   if (activeWatcher !== null) return
+  // A watcher started from a Remote call (the board's replay button) has no
+  // agent to own a registry job, so `startWatcher` runs it detached and returns
+  // no id. That loop still needs the singleton guard: without it every replay
+  // click would start another poller over the same ledger.
+  if (detachedWatcher) return
   const jobId = startWatcher(ctx, site, poolConfig, agent)
-  if (jobId === undefined) return
+  if (jobId === undefined) {
+    detachedWatcher = true
+    return
+  }
   const ownerId = agent?.id
   activeWatcher = { jobId, ownerId }
   // The watcher settles via ctx.jobs when the pool drains, which appends

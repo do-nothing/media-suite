@@ -413,7 +413,17 @@ function registerController(ctx) {
       if (!Number.isInteger(rowId) || rowId <= 0) return { status: 'error', message: '无效的任务编号' }
       const replayed = await poolStore.requeue(rowId)
       if (!replayed) return { status: 'error', message: '任务不存在' }
-      ensurePoolWatcher(ctx)
+      // The requeue already succeeded, so a watcher that cannot start must not
+      // turn this into a failure: the row is queued either way, and reporting
+      // an error here left users believing the replay was lost when it was not.
+      // A Remote call has no owner agent, so the registry may refuse to serve it
+      // and `startWatcher` falls back to a detached loop; anything else that
+      // throws is reported to the log instead.
+      try {
+        ensurePoolWatcher(ctx)
+      } catch (error) {
+        ctx.logger?.warn?.('media-runninghub: pool watcher did not start: %o', error)
+      }
       return { status: 'ok', newRowId: replayed.id, batchId: replayed.batchId, message: undefined }
     },
   }

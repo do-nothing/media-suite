@@ -255,3 +255,110 @@ export function staleSeconds(task, pollIntervalSeconds, now = Date.now()) {
   const gap = Math.floor((Number(now) - anchor) / 1000)
   return gap > threshold ? gap : null
 }
+
+/** Display columns a save-path cell may occupy, as `pool.py` uses. */
+export const SAVE_PATH_WIDTH = 48
+
+/**
+ * Clip a path from the FRONT, keeping the tail: `…<tail>`.
+ *
+ * Local output paths carry the distinguishing file and directory names at the
+ * tail; the drive and the fixed output prefix are the least interesting part.
+ * Mirrors `_clip_front` in `pool.py`, including reserving one column for the
+ * ellipsis and measuring by display width rather than code units.
+ *
+ * @param text - the full path.
+ * @param width - the column budget.
+ * @returns the text, or its tail with a leading ellipsis.
+ */
+export function clipFront(text, width = SAVE_PATH_WIDTH) {
+  const value = typeof text === 'string' ? text : ''
+  const budget = Math.max(1, Number(width) || SAVE_PATH_WIDTH)
+  if (displayWidth(value) <= budget) return value
+  const room = budget - 1 // one column for the ellipsis
+  let tail = ''
+  const chars = [...value]
+  for (let i = chars.length - 1; i >= 0; i--) {
+    const next = chars[i] + tail
+    if (displayWidth(next) > room) break
+    tail = next
+  }
+  return `…${tail}`
+}
+
+/**
+ * Width of a string in display columns: a full-width character counts as two.
+ *
+ * East-Asian wide ranges are counted as two, which is what a terminal table
+ * needs; combining marks and most symbols count as one.
+ */
+export function displayWidth(text) {
+  let total = 0
+  for (const ch of [...(typeof text === 'string' ? text : '')]) {
+    const code = ch.codePointAt(0)
+    total += isWide(code) ? 2 : 1
+  }
+  return total
+}
+
+/** Whether a code point occupies two display columns. */
+function isWide(code) {
+  if (!Number.isFinite(code)) return false
+  return (
+    (code >= 0x1100 && code <= 0x115F) || // Hangul Jamo
+    (code >= 0x2E80 && code <= 0x303E) || // CJK radicals, punctuation
+    (code >= 0x3041 && code <= 0x33FF) || // Kana, CJK compatibility
+    (code >= 0x3400 && code <= 0x4DBF) || // CJK extension A
+    (code >= 0x4E00 && code <= 0x9FFF) || // CJK unified ideographs
+    (code >= 0xA000 && code <= 0xA4CF) || // Yi
+    (code >= 0xAC00 && code <= 0xD7A3) || // Hangul syllables
+    (code >= 0xF900 && code <= 0xFAFF) || // CJK compatibility ideographs
+    (code >= 0xFE30 && code <= 0xFE4F) || // CJK compatibility forms
+    (code >= 0xFF00 && code <= 0xFF60) || // Fullwidth forms
+    (code >= 0xFFE0 && code <= 0xFFE6) ||
+    (code >= 0x1F300 && code <= 0x1F64F) || // emoji
+    (code >= 0x1F900 && code <= 0x1F9FF) ||
+    (code >= 0x20000 && code <= 0x3FFFD) // CJK extensions B+
+  )
+}
+
+/**
+ * The 保存位置 cell for one task, built from local download records.
+ *
+ * Only outputs actually written to disk count (`path`); remote URLs are
+ * deliberately ignored, because "saved where" means a file the user can open.
+ * Multi-output tasks are disambiguated with their node id. Mirrors
+ * `_ls_path_cell` in `pool.py`.
+ *
+ * @param outputs - the task's output rows.
+ * @param width - per-path column budget.
+ * @returns a display string; `-` when nothing was saved, `下载失败` when every
+ *   download failed.
+ */
+export function formatSavePath(outputs, width = SAVE_PATH_WIDTH) {
+  const rows = Array.isArray(outputs) ? outputs : []
+  const saved = rows
+    .filter((row) => row && okOf(row) && typeof row.path === 'string' && row.path.length > 0)
+    .map((row) => ({ node: String(row.node_id ?? 'out'), path: row.path }))
+  if (saved.length === 0) {
+    return rows.some((row) => row && !okOf(row)) ? '下载失败' : '-'
+  }
+  const multi = saved.length > 1
+  const parts = saved.map((entry) => {
+    const clipped = clipFront(entry.path, width)
+    return multi ? `${entry.node}:${clipped}` : clipped
+  })
+  return parts.join(' ; ')
+}
+
+/**
+ * Whether an output row counts as saved.
+ *
+ * The ledger stores this as the SQLite integer 0/1, not a boolean, so a strict
+ * `=== true` test matches nothing — the reason the column once read `—` for
+ * every row.
+ */
+function okOf(row) {
+  return row.ok !== 0 && row.ok !== false && row.ok !== undefined && row.ok !== null
+}
+
