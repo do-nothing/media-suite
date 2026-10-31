@@ -373,6 +373,9 @@ window.__ModuleLoader__.load({
         stNoCost: '—',
         stNoOutput: '—',
         stOutputOpen: '查看',
+        previewTitle: '产物预览',
+        previewClose: '关闭',
+        previewOpenRaw: '在新窗口打开原文件',
         stallWarning: '任务 {ids} 已 {duration} 无推进，后台 watcher 可能已停止。刷新只重读台账、不会重新拉起 watcher；点「恢复 watcher」才会继续轮询这些任务。',
         stReplay: '再次生成',
         stCancel: '取消',
@@ -501,6 +504,9 @@ window.__ModuleLoader__.load({
         stNoCost: '—',
         stNoOutput: '—',
         stOutputOpen: 'View',
+        previewTitle: 'Output preview',
+        previewClose: 'Close',
+        previewOpenRaw: 'Open the original in a new window',
         stallWarning: 'Task {ids} has not advanced for {duration}: the background watcher may have stopped. Refresh only re-reads the ledger and will not restart it; use "Resume watcher" to start polling these tasks again.',
         stReplay: 'Replay',
         stCancel: 'Cancel',
@@ -610,6 +616,13 @@ window.__ModuleLoader__.load({
 .media-rh-saved { display: inline-block; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 11px; }
 .media-rh-stall { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: 10px; border: 0.5px solid var(--dsw-alias-border-warn, #d9a13b); background: var(--dsw-alias-bg-warn, rgba(217, 161, 59, 0.10)); }
 .media-rh-stall-text { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-warn, #b8791f); }
+.media-rh-preview-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, 0.72); }
+.media-rh-preview { display: flex; flex-direction: column; gap: 10px; max-width: min(92vw, 1200px); max-height: 92vh; padding: 12px; border-radius: 12px; background: var(--dsw-alias-bg-layer-1); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); }
+.media-rh-preview-head { display: flex; align-items: center; gap: 12px; }
+.media-rh-preview-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.media-rh-preview-media { max-width: 100%; max-height: 76vh; border-radius: 8px; object-fit: contain; background: #000; }
+.media-rh-preview-open { align-self: flex-start; font-size: 12px; color: var(--dsw-alias-brand-primary); text-decoration: none; }
+.media-rh-preview-open:hover { text-decoration: underline; }
 .media-rh-row-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 .media-rh-row-actions-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; white-space: nowrap; }
 .media-rh-row-msg { max-width: 220px; font-size: 12px; line-height: 16px; white-space: normal; overflow-wrap: anywhere; }
@@ -941,6 +954,55 @@ window.__ModuleLoader__.load({
         return multi ? `${entry.node}:${clipped}` : clipped
       })
       return parts.join(' ; ')
+    }
+
+    /** Image extensions the preview overlay renders inline. */
+    const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif'])
+    /** Video extensions the preview overlay plays. */
+    const VIDEO_EXTS = new Set(['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v'])
+    /** Audio extensions the preview overlay plays. */
+    const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'm4a', 'm3a', 'aac', 'ogg', 'opus'])
+
+    /**
+     * How a saved output should be previewed.
+     *
+     * The remote `url` is a plain public object-storage link — no signature, no
+     * expiry — and it serves the right `content-type`, so the browser renders it
+     * directly with no proxy and no download step. Returns null for a type the UI
+     * has no viewer for, so the cell stays a plain label instead of opening an
+     * empty overlay.
+     *
+     * @param outputType - the ledger's `output_type` (an extension such as `png`).
+     * @returns 'image' | 'video' | 'audio' | null.
+     */
+    function previewKindOf(outputType) {
+      const ext = String(outputType ?? '').toLowerCase().replace(/^\./, '')
+      if (IMAGE_EXTS.has(ext)) return 'image'
+      if (VIDEO_EXTS.has(ext)) return 'video'
+      if (AUDIO_EXTS.has(ext)) return 'audio'
+      return null
+    }
+
+    /**
+     * The output a click on the save-path cell should preview.
+     *
+     * Prefers an output that also has a local `path`: the cell shows a local
+     * path, so a row whose download failed has nothing to open.
+     *
+     * @param outputs - the task's output rows.
+     * @returns `{ url, kind, name }`, or null when nothing is previewable.
+     */
+    function previewTargetOf(outputs) {
+      const rows = Array.isArray(outputs) ? outputs : []
+      const usable = rows.filter((row) => row && outputOk(row) && typeof row.url === 'string' && row.url.length > 0)
+      const pick = usable.find((row) => typeof row.path === 'string' && row.path.length > 0) ?? usable[0]
+      if (!pick) return null
+      const kind = previewKindOf(pick.output_type)
+      if (kind === null) return null
+      const name = typeof pick.path === 'string' && pick.path.length > 0
+        ? pick.path.split(/[\\/]/).pop()
+        : `${pick.node_id ?? 'output'}.${String(pick.output_type ?? '').toLowerCase()}`
+      return { url: pick.url, kind, name }
     }
     // --- end pure view logic -------------------------------------------------
 
@@ -1332,6 +1394,8 @@ window.__ModuleLoader__.load({
       // { kind: 'ok' | 'error', text } after a "Resume watcher" click.
       const [resumeMsg, setResumeMsg] = React.useState(null)
       const [resuming, setResuming] = React.useState(false)
+      // { url, kind, name } while the media preview overlay is open, else null.
+      const [preview, setPreview] = React.useState(null)
       const autoRef = React.useRef(true)
       autoRef.current = auto
       viewBatchRef.current = viewBatch
@@ -1703,15 +1767,22 @@ window.__ModuleLoader__.load({
                     const savedRows = outputs
                       .filter((o) => o && outputOk(o) && typeof o.path === 'string' && o.path.length > 0)
                     const saveFull = savedRows.map((o) => o.path).join('\n')
-                    const firstSaved = savedRows[0]
-                    const outCell = firstSaved
+                    // A click opens an inline preview from the output's remote
+                    // URL: object storage serves the right content-type, so the
+                    // element renders directly with no proxy. Without a
+                    // previewable output the cell stays plain text rather than
+                    // opening an empty overlay.
+                    const target = previewTargetOf(outputs)
+                    const outCell = target !== null
                       ? h('a', {
                           className: 'media-rh-output-link media-rh-saved',
-                          href: firstSaved.path,
-                          target: '_self',
-                          rel: 'noreferrer',
-                          onClick: (event) => event.preventDefault(),
-                          title: saveFull,
+                          href: target.url,
+                          role: 'button',
+                          onClick: (event) => {
+                            event.preventDefault()
+                            setPreview(target)
+                          },
+                          title: `${saveFull}\n\n点击预览`,
                         }, saveText)
                       : h('span', { className: 'media-rh-muted media-rh-saved', title: saveText }, saveText)
                     // 发起时间 is when the task actually reached RunningHub, not
@@ -1785,7 +1856,52 @@ window.__ModuleLoader__.load({
                   }))
                 )
               )
-            )
+            ),
+        preview !== null ? h(MediaPreview, { t, preview, onClose: () => setPreview(null) }) : null
+      )
+    }
+
+    /**
+     * The media preview overlay.
+     *
+     * Renders from the output's remote object-storage URL: that link is public
+     * and serves the right content-type, so the element plays or displays
+     * directly with no proxy. A click on the backdrop or the close button
+     * dismisses it; Escape does too, so a keyboard user is not trapped.
+     */
+    function MediaPreview({ t, preview, onClose }) {
+      React.useEffect(() => {
+        const onKey = (event) => { if (event.key === 'Escape') onClose() }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [onClose])
+
+      const body = preview.kind === 'image'
+        ? h('img', { className: 'media-rh-preview-media', src: preview.url, alt: preview.name })
+        : preview.kind === 'video'
+          ? h('video', { className: 'media-rh-preview-media', src: preview.url, controls: true, autoPlay: true, playsInline: true })
+          : h('audio', { className: 'media-rh-preview-media', src: preview.url, controls: true, autoPlay: true })
+
+      return h('div', {
+        className: 'media-rh-preview-backdrop',
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-label': t('previewTitle'),
+        onClick: (event) => { if (event.target === event.currentTarget) onClose() },
+      },
+        h('div', { className: 'media-rh-preview' },
+          h('div', { className: 'media-rh-preview-head' },
+            h('span', { className: 'media-rh-preview-name', title: preview.name }, preview.name),
+            h('button', { type: 'button', className: 'media-rh-btn', onClick: onClose }, t('previewClose'))
+          ),
+          body,
+          h('a', {
+            className: 'media-rh-preview-open',
+            href: preview.url,
+            target: '_blank',
+            rel: 'noreferrer',
+          }, t('previewOpenRaw'))
+        )
       )
     }
 
