@@ -63,10 +63,21 @@ async function tick(apiKey, site, job, cfg) {
   return { drained: after.length === 0 }
 }
 
-/** Download the result files of one finished task. */
+/**
+ * Download the result files of one finished task.
+ *
+ * The destination comes from the ledger's own `output_dir` / `output_name`
+ * columns, not from `request_json`. The submit path has always written those
+ * columns, but the download read them out of `request_json`, which only carries
+ * `{ workflowId, instanceType }` — so a caller's `outputDir` was silently
+ * ignored and every file landed in `output_root/batch-N/`. `request_json` is
+ * still consulted as a fallback so rows written by the older build, or by a
+ * caller that put the fields there, keep working.
+ */
 async function downloadOutputs(task, results) {
-  const request = JSON.parse(task.request_json)
-  const customDir = request.outputDir
+  const request = safeParseRequest(task.request_json)
+  const customDir = task.output_dir || request.outputDir
+  const customName = task.output_name || request.outputName
   const items = (results ?? []).filter((it) => it.url || it.outputUrl)
   const downloads = []
   for (const [index, item] of items.entries()) {
@@ -74,8 +85,8 @@ async function downloadOutputs(task, results) {
     const ext = item.outputType ?? 'bin'
     const node = item.nodeId ?? 'out'
     let filename
-    if (customDir && request.outputName) {
-      const stem = String(request.outputName).split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'output'
+    if (customDir && customName) {
+      const stem = String(customName).split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'output'
       filename = items.length > 1 ? `${stem}_${index}.${ext}` : `${stem}.${ext}`
     } else {
       // Default identity; idx in the raw result list keeps node-slot
@@ -98,6 +109,17 @@ async function downloadOutputs(task, results) {
     downloads.push(record)
   }
   return downloads
+}
+
+/** Parse a `request_json` column, tolerating a null or malformed value. */
+function safeParseRequest(text) {
+  if (typeof text !== 'string' || text.length === 0) return {}
+  try {
+    const parsed = JSON.parse(text)
+    return parsed !== null && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
 }
 
 /**
