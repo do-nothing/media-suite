@@ -21,6 +21,7 @@
     "directory": "packages/media-qwen"
   },
   "license": "Apache-2.0",
+  "publishConfig": { "registry": "https://registry.npmjs.org/", "access": "public" },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
