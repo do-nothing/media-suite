@@ -14,7 +14,7 @@ import { poolConfig } from './config.js'
 import * as store from './store.js'
 import { buildPayload, getTaskType, loadTaskTypes } from './types.js'
 import { classifyFileValue, uploadFile } from './upload.js'
-import { poolView } from './view.js'
+import { poolView, typeNameMap } from './view.js'
 import { startWatcher } from './watcher.js'
 
 // The single global watcher's identity, or null when the pool has drained.
@@ -321,10 +321,18 @@ function createStatusTool() {
     },
     async execute(args) {
       // Same builder the settings board uses, so the tool and the board cannot
-      // disagree on field names or on which branch enriches what.
+      // disagree on field names or on which branch enriches what. The type
+      // catalogue is read here so a status reply carries display names too.
+      let typeNames
+      try {
+        typeNames = typeNameMap(await loadTaskTypes())
+      } catch {
+        typeNames = undefined
+      }
       return poolView(store, {
         batchId: typeof args?.batchId === 'number' ? args.batchId : undefined,
         limit: typeof args?.limit === 'number' ? args.limit : 20,
+        typeNames,
       })
     },
   }

@@ -1624,7 +1624,11 @@ window.__ModuleLoader__.load({
                     const busyType = busy ? busyRow.action : null
                     const msg = (rowMsg !== null && rowMsg.row === row.id) ? rowMsg : null
                     return h('tr', { key: String(row.id) },
-                      h('td', { className: 'media-rh-type', title: row.type_id }, row.type_id || t('statusUnknown')),
+                      // The cell shows the human name when the Host could resolve
+                      // one, and keeps the raw id as the tooltip either way, so
+                      // a type missing from the catalogue is still identifiable.
+                      h('td', { className: 'media-rh-type', title: row.type_id },
+                        row.displayName || row.type_id || t('statusUnknown')),
                       // The instance tier is what explains a task's price: a
                       // `plus` run costs several times a `default` one for the
                       // same workflow. `pool.py ls` shows it as-is, `-` when

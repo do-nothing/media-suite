@@ -26,8 +26,12 @@ export const POOL_VIEW_KEYS = ['currentBatchId', 'latestBatchId', 'batches', 'co
  * enriched the same way, plus the batch list and the highest id so the board can
  * anchor on the last batch once the pool drains.
  *
+ * `options.typeNames` optionally maps a `type_id` to its display name. It is
+ * passed in rather than imported so this module stays a pure function over rows:
+ * the type catalogue lives in `types.js` and is the caller's business.
+ *
  * @param store - the ledger module (`store.js`).
- * @param options - `{ batchId?, limit? }`.
+ * @param options - `{ batchId?, limit?, typeNames? }`.
  */
 export async function poolView(store, options = {}) {
   const batchId = Number(options.batchId)
@@ -35,9 +39,16 @@ export async function poolView(store, options = {}) {
   const latestBatchId = await store.latestBatchId()
   const batches = await store.batches()
   const currentBatchId = await store.currentBatchId()
+  const typeNames = options.typeNames instanceof Map ? options.typeNames : null
+
+  /** Attach the display name when the caller supplied a catalogue. */
+  const named = (task) => (typeNames === null
+    ? task
+    : { ...task, displayName: typeNames.get(task.type_id) ?? null })
 
   if (Number.isInteger(batchId) && batchId > 0) {
-    const tasks = await store.batchDetail(batchId)
+    const rows = await store.batchDetail(batchId)
+    const tasks = rows.map(named)
     return {
       status: 'ok',
       currentBatchId,
@@ -51,12 +62,12 @@ export async function poolView(store, options = {}) {
   const view = await store.overview(limit)
   const enriched = []
   for (const task of Array.isArray(view.tasks) ? view.tasks : []) {
-    enriched.push({
+    enriched.push(named({
       ...task,
       costs: safeJson(task.cost_json),
       params: safeJson(task.params_json),
       outputs: await store.outputsOf(task.id),
-    })
+    }))
   }
   return {
     status: 'ok',
@@ -90,6 +101,29 @@ function safeJson(value) {
 export function missingViewKeys(view) {
   if (view === null || typeof view !== 'object') return [...POOL_VIEW_KEYS]
   return POOL_VIEW_KEYS.filter((key) => !(key in view))
+}
+
+/**
+ * A `type_id → displayName` map built from a task-type catalogue.
+ *
+ * The board shows the human name; the ledger stores the id. Building the map is
+ * the caller's job because the catalogue lives outside this module, but the
+ * shape has to be exactly what `poolView` expects, so the mapping lives here.
+ *
+ * @param types - task-type objects carrying `typeId` and `displayName`.
+ * @returns a Map from id to display name.
+ */
+export function typeNameMap(types) {
+  const map = new Map()
+  for (const type of Array.isArray(types) ? types : []) {
+    const id = typeof type?.typeId === 'string' ? type.typeId : null
+    if (id === null) continue
+    const name = typeof type?.displayName === 'string' && type.displayName.length > 0
+      ? type.displayName
+      : null
+    if (name !== null) map.set(id, name)
+  }
+  return map
 }
 
 /**

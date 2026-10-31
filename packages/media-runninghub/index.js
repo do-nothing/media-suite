@@ -33,7 +33,8 @@ import {
   siteOfConfig as poolSiteOfConfig,
   resolveJobsApiKey as resolveJobsKey,
 } from './lib/pool/tools.js'
-import { poolView } from './lib/pool/view.js'
+import { poolView, typeNameMap } from './lib/pool/view.js'
+import { loadTaskTypes } from './lib/pool/types.js'
 import {
   JOBS_REF,
   SYNC_REF,
@@ -377,10 +378,19 @@ function registerController(ctx) {
      */
     async poolStatus(input) {
       // Same builder the status tool uses, so the board and the tool cannot
-      // disagree on field names or on which branch enriches what.
+      // disagree on field names or on which branch enriches what. The type
+      // catalogue is read here so the board can show display names; a catalogue
+      // that fails to load leaves the ids in place rather than breaking the page.
+      let typeNames
+      try {
+        typeNames = typeNameMap(await loadTaskTypes())
+      } catch {
+        typeNames = undefined
+      }
       return poolView(poolStore, {
         batchId: Number(input?.batchId),
         limit: Number.isInteger(input?.limit) && input.limit > 0 ? Number(input.limit) : 50,
+        typeNames,
       })
     },
     /**

@@ -27,6 +27,7 @@ import {
   outstandingOf,
   staleSeconds,
   taskDuration,
+  typeNameMap,
 } from '../lib/pool/view.js'
 
 // --- batch anchoring -------------------------------------------------------
@@ -327,4 +328,35 @@ test('clipping respects display width for CJK tails', () => {
   const clipped = clipFront('E:\\输出\\批次\\结果.png', 10)
   assert.equal(displayWidth(clipped), 10)
   assert.ok(clipped.endsWith('结果.png') || clipped.endsWith('.png'))
+})
+
+// --- type display names ----------------------------------------------------
+
+test('typeNameMap maps ids to display names', () => {
+  const map = typeNameMap([
+    { typeId: 'image-gen-qwen', displayName: 'Qwen Image 2.1 文生图' },
+    { typeId: 'digital-human', displayName: '数字人生成' },
+  ])
+  assert.equal(map.get('image-gen-qwen'), 'Qwen Image 2.1 文生图')
+  assert.equal(map.get('digital-human'), '数字人生成')
+  assert.equal(map.size, 2)
+})
+
+test('typeNameMap skips entries it cannot name', () => {
+  // A catalogue row with no displayName leaves the board showing the raw id
+  // rather than an empty cell, so it must not enter the map at all.
+  const map = typeNameMap([
+    { typeId: 'a', displayName: '' },
+    { typeId: 'b' },
+    { displayName: 'no id' },
+    null,
+    'not an object',
+  ])
+  assert.equal(map.size, 0)
+})
+
+test('typeNameMap tolerates a non-array input', () => {
+  assert.equal(typeNameMap(undefined).size, 0)
+  assert.equal(typeNameMap(null).size, 0)
+  assert.equal(typeNameMap({}).size, 0)
 })
