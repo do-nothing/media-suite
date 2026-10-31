@@ -178,11 +178,13 @@ test('formatDuration switches units at a minute and an hour', () => {
 
 test('taskDuration marks a running task with an ellipsis', () => {
   const now = 1_000_000
-  const finished = taskDuration({ created_at: now - 91_000, finished_at: now }, now)
+  const finished = taskDuration({ created_at: now - 91_000, finished_at: now, status: 'SUCCESS' }, now)
   assert.equal(finished.text, '1m31s')
   assert.equal(finished.seconds, 91)
 
-  const running = taskDuration({ created_at: now - 5_000 }, now)
+  // "Running" is now decided by status, not by a missing `finished_at`: a row
+  // written before that column existed is terminal, not in progress.
+  const running = taskDuration({ created_at: now - 5_000, status: 'DISPATCHED' }, now)
   assert.equal(running.text, '5s…')
 })
 
@@ -359,4 +361,42 @@ test('typeNameMap tolerates a non-array input', () => {
   assert.equal(typeNameMap(undefined).size, 0)
   assert.equal(typeNameMap(null).size, 0)
   assert.equal(typeNameMap({}).size, 0)
+})
+
+// --- duration --------------------------------------------------------------
+
+test('a terminal row without finished_at ends at its last write', () => {
+  // Rows written before the column existed carry NULL there. Treating that as
+  // "still running" is the bug this case pins down: it printed `5m00s…` for a
+  // task that had finished an hour ago.
+  const now = 1_000_000_000
+  const task = { created_at: now - 300_000, updated_at: now - 240_000, status: 'SUCCESS' }
+  assert.deepEqual(taskDuration(task, now), { seconds: 60, text: '1m00s' })
+})
+
+test('a terminal row prefers finished_at over updated_at', () => {
+  const now = 1_000_000_000
+  const task = { created_at: now - 300_000, updated_at: now - 240_000, finished_at: now - 250_000, status: 'SUCCESS' }
+  assert.deepEqual(taskDuration(task, now), { seconds: 50, text: '50s' })
+})
+
+test('an outstanding row measures against the clock and marks itself', () => {
+  const now = 1_000_000_000
+  for (const status of ['PENDING', 'DISPATCHED']) {
+    const task = { created_at: now - 300_000, updated_at: now - 20_000, status }
+    const out = taskDuration(task, now)
+    assert.equal(out.seconds, 300, status)
+    assert.ok(out.text.endsWith('…'), status)
+    assert.ok(out.text.startsWith('5m00s'), status)
+  }
+})
+
+test('a terminal row with no usable end reads as a dash', () => {
+  const now = 1_000_000_000
+  assert.equal(taskDuration({ created_at: now - 300_000, status: 'FAILED' }, now).text, '-')
+})
+
+test('a row with no start time reads as a dash', () => {
+  assert.equal(taskDuration({ status: 'SUCCESS' }, 1_000_000_000).text, '-')
+  assert.equal(taskDuration(null, 1_000_000_000).text, '-')
 })

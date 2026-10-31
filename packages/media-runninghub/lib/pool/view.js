@@ -241,7 +241,12 @@ export function formatMoney(value, currency) {
 /**
  * Elapsed time for one task, matching what `pool.py ls` shows.
  *
- * @param task - a ledger row with `created_at` and optionally `finished_at`.
+ * Rows written before `finished_at` existed carry NULL there; for a terminal
+ * row `updated_at` is the last write and is the best available end. Only a row
+ * that is still outstanding measures against the clock and earns the `…`.
+ *
+ * @param task - a ledger row with `created_at`, `status`, and optionally
+ *   `finished_at` / `updated_at`.
  * @param now - the current epoch in milliseconds.
  * @returns `{ seconds, text }`; `text` carries a trailing `…` while the task is
  *   still running, and is `-` when the row has no start time.
@@ -249,9 +254,25 @@ export function formatMoney(value, currency) {
 export function taskDuration(task, now = Date.now()) {
   const start = Number(task?.created_at)
   if (!Number.isFinite(start) || start <= 0) return { seconds: null, text: '-' }
+  const status = task?.status
+  const outstanding = status === 'PENDING' || status === 'DISPATCHED'
+  // Only an outstanding row measures against the clock. A terminal row without
+  // `finished_at` (written before that column existed) ends at its last write.
   const finished = Number(task?.finished_at)
-  const running = !Number.isFinite(finished) || finished <= 0
-  const end = running ? Number(now) : finished
+  const updated = Number(task?.updated_at)
+  const hasFinished = Number.isFinite(finished) && finished > 0
+  const running = outstanding
+  let end
+  if (running) {
+    end = Number(now)
+  } else if (hasFinished) {
+    end = finished
+  } else if (Number.isFinite(updated) && updated > 0) {
+    end = updated
+  } else {
+    // A terminal row with neither timestamp cannot be timed.
+    return { seconds: null, text: '-' }
+  }
   const seconds = Math.max(0, Math.floor((end - start) / 1000))
   return { seconds, text: formatDuration(seconds) + (running ? '…' : '') }
 }

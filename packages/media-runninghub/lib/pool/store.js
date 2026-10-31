@@ -40,7 +40,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   error_message TEXT,
   cost_json     TEXT,
   created_at    INTEGER NOT NULL,
-  updated_at    INTEGER NOT NULL
+  updated_at    INTEGER NOT NULL,
+  submitted_at  INTEGER,
+  finished_at   INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_batch  ON tasks (batch_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status);
@@ -65,6 +67,34 @@ CREATE TABLE IF NOT EXISTS uploads (
 
 let dbPromise = null
 
+/** The ledger schema version this build expects. */
+const SCHEMA_VERSION = '2'
+
+/**
+ * Columns added after the first release. `CREATE TABLE IF NOT EXISTS` only
+ * builds a fresh table, so an existing ledger needs these added in place.
+ */
+const ADDED_COLUMNS = [
+  ['submitted_at', 'INTEGER'],
+  ['finished_at', 'INTEGER'],
+]
+
+/**
+ * Add any missing column to an existing ledger.
+ *
+ * Runs on every open and is idempotent: `PRAGMA table_info` tells us which
+ * columns exist, and only the missing ones are added. Rows written before the
+ * column existed keep NULL, which callers already treat as "unknown" — the
+ * duration falls back to `updated_at` and the submit time to `created_at`.
+ */
+function migrate(db) {
+  const existing = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((c) => c.name))
+  for (const [name, type] of ADDED_COLUMNS) {
+    if (existing.has(name)) continue
+    db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`)
+  }
+}
+
 /** Open (and migrate) the ledger once; later calls reuse the same handle. */
 async function open() {
   if (dbPromise) return dbPromise
@@ -73,7 +103,8 @@ async function open() {
     const { DatabaseSync } = await import('node:sqlite')
     const db = new DatabaseSync(DB_PATH)
     db.exec(SCHEMA)
-    db.prepare("INSERT OR IGNORE INTO schema_meta (key, value) VALUES ('schema', '1')").run()
+    migrate(db)
+    db.prepare('INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)').run('schema', SCHEMA_VERSION)
     return db
   })()
   return dbPromise
@@ -137,8 +168,11 @@ export async function enqueue(jobs, sessionId) {
 /** Record the RunningHub taskId for a dispatched task row. */
 export async function setDispatched(rowId, taskId) {
   const db = await open()
-  db.prepare("UPDATE tasks SET task_id = ?, status = 'DISPATCHED', updated_at = ? WHERE id = ?")
-    .run(taskId, now(), rowId)
+  // `submitted_at` records when RunningHub actually accepted the task, which can
+  // be minutes after `created_at` when the row waited for a concurrency slot.
+  const at = now()
+  db.prepare("UPDATE tasks SET task_id = ?, status = 'DISPATCHED', submitted_at = ?, updated_at = ? WHERE id = ?")
+    .run(taskId, at, at, rowId)
 }
 
 /** Record a submit-level failure (RunningHub refused the create call). */
@@ -153,12 +187,15 @@ export async function setSubmitFailed(rowId, result) {
 /** Record a terminal poll result (SUCCESS or FAILED) with costs. */
 export async function setTerminal(rowId, result) {
   const db = await open()
+  // `finished_at` is when the task stopped being outstanding; the board's
+  // duration column reads it instead of guessing from `updated_at`.
+  const at = now()
   db.prepare(`
-    UPDATE tasks SET status = ?, rh_status = ?, error_code = ?, error_message = ?, cost_json = ?, updated_at = ?
+    UPDATE tasks SET status = ?, rh_status = ?, error_code = ?, error_message = ?, cost_json = ?, finished_at = ?, updated_at = ?
     WHERE id = ?
   `).run(
     result.status, result.rhStatus ?? null, result.errorCode ?? null, result.errorMessage ?? null,
-    result.costs === undefined ? null : JSON.stringify(result.costs), now(), rowId,
+    result.costs === undefined ? null : JSON.stringify(result.costs), at, at, rowId,
   )
 }
 
@@ -251,7 +288,8 @@ export async function batches() {
 /** Mark a task row cancelled. Its RunningHub counterpart (if any) is its caller's job. */
 export async function setCancelled(rowId) {
   const db = await open()
-  db.prepare("UPDATE tasks SET status = 'CANCELLED', updated_at = ? WHERE id = ?").run(now(), rowId)
+  const at = now()
+  db.prepare("UPDATE tasks SET status = 'CANCELLED', finished_at = ?, updated_at = ? WHERE id = ?").run(at, at, rowId)
 }
 
 /**
