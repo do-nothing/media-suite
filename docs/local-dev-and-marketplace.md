@@ -1,29 +1,18 @@
 # media-suite 项目说明
 
-> 本文是**当前状态的权威说明**。排障过程已结束，历史弯路不再保留——只记结论、机制和规则。
-> 想改包、发版、或排查加载失败，读这一份就够。
+> 精简版：只保留**不可再生的原理**与**日常要用的工作流**。
+> 发布流程、上架流程、功能清单等操作性内容已移除——那些要么已固化在脚本里，
+> 要么一次性的。新增经验往对应小节追加，不要另起一份文档。
+
+三个包：`@tmmk/media-qwen`、`@tmmk/media-runninghub`、`@tmmk/media-suite`（分发壳）。
 
 ---
 
-## 1. 包结构
+## 1. 插件加载机制
 
-三个包，`@tmmk` scope，已发布到 npm（账号 `lj110119`）：
+不理解这一节，后面所有的坑都看不懂。
 
-| 包 | 版本 | 角色 | 依赖 |
-|---|---|---|---|
-| `@tmmk/media-qwen` | 0.1.1 | 真插件：Qwen 多模态 / TTS / 音频生成 | 无 |
-| `@tmmk/media-runninghub` | 0.1.1 | 真插件：RunningHub 同步出图 + 工作流任务池 | 无 |
-| `@tmmk/media-suite` | 0.1.3 | **分发壳**：只负责把上面两个挂起来 | qwen `^0.1.1`、runninghub `^0.1.1` |
-
-三个包都声明了 `dsh.bundle.patch` 和 `dsh.client`（`platform: web`），都有 `index.js`（Host 半）和 `client.js`（Client 半）。
-
-`media-suite` 自己**没有 Config、没有设置页、没有工具**——它的 `apply()` 是空的，唯一贡献就是 patch。
-
----
-
-## 2. 插件加载机制（理解这一节才能理解后面的坑）
-
-### 2.1 组合顺序
+### 1.1 组合顺序
 
 一个 `dsh` 进程 = 一棵插件树。树从**空列表**长出，按顺序叠 patch：
 
@@ -36,7 +25,7 @@
 
 patch 只有两种动作：**insert 新行**、或**按 `id` 替换已有行的 config**（整块替换，不深合并）。
 
-### 2.2 一行怎么变成插件
+### 1.2 一行怎么变成插件
 
 ```
 patch insert { id, name: '@tmmk/media-qwen' }
@@ -47,7 +36,7 @@ patch insert { id, name: '@tmmk/media-qwen' }
 
 `inject` 是加载门槛：`['credentials','tools']` 意味着这两个服务就绪前不激活；服务消失会自动卸载、恢复自动重载。
 
-### 2.3 Client 半
+### 1.3 Client 半
 
 `client-modules` 扫 loader 里**声明了 `dsh.client` 的包**，组合成 `window.__DSH_BOOT__` 的 entry 图，浏览器按 entry 去 `/plugins/??<包名>/client.js&rev=<hash>` 拉取。
 
@@ -55,7 +44,7 @@ patch insert { id, name: '@tmmk/media-qwen' }
 
 ---
 
-## 3. 集成器为什么必须自己插三行
+## 2. 集成器为什么必须自己插三行
 
 这是本项目最重要的设计决策。
 
@@ -91,9 +80,9 @@ provider 的默认 config 也只能由壳给出——因为 provider 那层 patc
 
 ---
 
-## 4. 两个必须记住的陷阱
+## 3. 四个必须记住的陷阱
 
-### 4.1 `__ModuleLoader__.load` 的 `id` 必须是完整包名
+### 3.1 `__ModuleLoader__.load` 的 `id` 必须是完整包名
 
 写短名（`media-qwen`）而 entry id 是 `@tmmk/media-qwen` → 内核查不到 factory →
 
@@ -106,7 +95,7 @@ client-modules: could not load "@tmmk/media-qwen": ... loaded without registerin
 
 手写 `window.__ModuleLoader__.load({ id, factory })` 这个形态本身是合法的（官方 client bundle 就是这么生成的，lazy-CJS factory 格式），错的只是 id。
 
-### 4.2 `files` 字段的通配符不匹配子目录
+### 3.2 `files` 字段的通配符不匹配子目录
 
 `"lib/*.js"` **不匹配** `lib/pool/*.js`。写错会让子目录整个漏出 tarball →
 
@@ -116,112 +105,68 @@ client-modules: could not load "@tmmk/media-qwen": ... loaded without registerin
 
 排查口诀：`npm pack --dry-run` 看文件列表，比读代码快。
 
-### 4.3 依赖范围必须跟版本走
+### 3.3 依赖范围必须跟版本走
 
 `media-suite` 依赖写 `^0.1.0` 时，pnpm 会**复用已有的 0.1.0 解析**（已满足范围，不主动升级）→ 用户装了新壳却拿到旧的坏 provider。
 
 **规则**：provider 修 bug 发版后，壳的依赖范围必须同步提到 `^<新版本>`，壳自身也要 bump 版本。
 
----
+### 3.4 `package.json` 里的 BOM 会让插件静默消失
 
-## 5. 发布流程
+**这是最难查的一个**，因为没有任何报错。
 
-### 5.1 顺序
+loader 要读 `package.json` 才知道 `dsh.bundle.patch` 和 `dsh.client.inject`。**JSON 前面多一个 UTF-8 BOM（`EF BB BF`）→ 解析失败 → 插件没有 bundle 声明 → 不挂载。**
 
-provider 先、壳后（壳依赖它们）：
+表现：
 
-```bash
-cd packages/media-qwen        && npm publish
-cd packages/media-runninghub  && npm publish
-cd packages/media-suite       && npm publish
+```
+plugin_manager list_plugins → enabled: false, fiberPhase: null
+设置页里这一项消失，但另外两个包正常
 ```
 
-### 5.2 凭据
+**为什么常规检查全都通过**：
 
-需要**带 Bypass 2FA 的 granular access token**，内联传参，不要写进 `.npmrc`、不要提交：
+| 检查 | 结果 | 原因 |
+|---|---|---|
+| `node --check` | ✅ | BOM 不影响 JS 解析 |
+| `import index.js` | ✅ | JS 模块加载器容忍 BOM |
+| `Config(...)` 校验 | ✅ | 不读 package.json |
+| `apply(ctx)` 执行 | ✅ | 不读 package.json |
+| 启动日志 | 干净 | loader 静默失败，不打印 |
 
-```bash
-npm publish --//registry.npmjs.org/:_authToken=<token>
+**唯一暴露它的是 `set_plugin`**：
+
+```
+BOM 存在 → "application": "overridden"   ← 配置无效，拒绝应用
+BOM 移除 → "application": "applied"      ← 正常
 ```
 
-普通 `.npmrc` token 若无 Bypass 2FA 会报 `403 Two-factor authentication ... required`。
+**根因**：Windows PowerShell 5 的 `Set-Content -Encoding UTF8` **会加 BOM**。同一个提交里用
+`[System.IO.File]::WriteAllText(..., UTF8Encoding($false))` 写的包就没事——**写法不一致才中招**。
 
-### 5.3 发布前自检
+**规则**：改 JSON/JS 文件一律用
 
-- [ ] 版本号已 bump（npm 不允许覆盖同版本）
-- [ ] `npm pack --dry-run` 文件列表完整（尤其子目录）
-- [ ] `client.js` 的 `load` id = 完整包名
-- [ ] 壳的依赖范围已跟上 provider 新版本
-- [ ] 壳的 patch 插入三行
-
-### 5.4 安装验证
-
-```bash
-dsh plugin --profile desktop add @tmmk/media-suite
+```powershell
+[System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
 ```
 
-装完重启 DSH，确认两个设置页出现。
+**提交前自检**：
 
-⚠️ 注意 lockfile 会锁旧版本。要强制升级用显式范围：
-
-```bash
-dsh plugin --profile desktop add @tmmk/media-suite@^<新版本>
+```powershell
+Get-ChildItem -Recurse -File -Include *.json,*.js | ForEach-Object {
+  $b = [System.IO.File]::ReadAllBytes($_.FullName)
+  if ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { "⚠ $($_.FullName)" }
+}
 ```
 
----
-
-## 6. 上架插件市场
-
-- 给 <https://github.com/deepseek-ai/awesome-dsh-plugin> 提 PR，加 `data/plugins/<owner>__<repo>.yml`：`url / name / category / description.en`。一个 PR 最多 3 条。
-- 硬性要求：声明 `dsh.bundle`（✅ 已满足）、真实代码、仓库满 1 天、加 `dsh-plugin` topic、描述属实。
-- **media-suite 是纯聚合壳，不会单独收录**；media-qwen / media-runninghub 可收录。
-- category 可取 tools / ai / vision / voice / workflow。
+**已中招过**：npm 上的 `media-runninghub@0.1.4` 就是坏版本（tarball 带 BOM），已标记废弃，
+0.1.5 修复。
 
 ---
 
-## 7. 各包实现要点
+## 4. 本地开发（热更新）
 
-### media-qwen
-
-- `inject: ['credentials','tools']`
-- 工具：`qwen_omni`、`qwen_tts`、`qwen_audio`
-- 凭据：`DASHSCOPE_API_KEY`（走 `ctx.remote.credentials.describe/set/unset`，页面永不持有明文）
-- Host 侧提供 `mediaQwenController`，remote 方法 `dashscopeStatus`
-
-### media-runninghub
-
-Config（`packages/media-runninghub/index.js`）：
-
-| 字段 | 类型 | 默认 | volatile |
-|---|---|---|---|
-| `surface` | `jobs` \| `sync` | **`jobs`** | 否（改动会重载插件） |
-| `syncSite` | `cn` \| `intl` | `cn` | ✅ |
-| `jobsSite` | `cn` \| `intl` | `cn` | ✅ |
-| `concurrency` | 1–100 | 2 | 否 |
-| `defaultInstanceType` | string | `default` | 否 |
-| `pollIntervalSeconds` | 5–600 | 30 | 否 |
-
-- `surface: sync` → 注册 `runninghub_image`
-- `surface: jobs` → 注册 `runninghub_workflow_submit` / `_types` / `_status`，并注册 runtime skill `runninghub-workflow`
-- 站点判定：**只看账户余额币种**（`USD`→国际站 `www.runninghub.ai`，`CNY`→中国站 `www.runninghub.cn`）。`accountStatus` 在任一站都能用任何 key 查，返回的 currency 属于账户本身。`apiType` 不能用于判站点。
-- 两个 Key：`RUNNINGHUB_SYNC_API_KEY`（sync）、`RUNNINGHUB_JOBS_API_KEY`（jobs）。相互独立，允许同值。
-- 台账：`packages/media-runninghub/data/pool/pool.sqlite`，gitignored，运行时自动重建。
-- 设置页：两张 Key 卡都显示；非当前 `surface` 的那张为**只读展示**（提示「切换 surface 后可编辑」）。
-
-### 任务池机制
-
-- 单例 watcher：全局只有一个，owner = **第一个提交任务的会话**；排空后只唤醒该会话，其他会话下次查台账可见。
-- 批次是**派生态**：台账有未完成任务时新任务并入当前批次；全部结束后再提交才新建批次。
-- `concurrency` 是**全局预算**（同时在飞的 RunningHub 任务数），由池自己管，不能用 `ctx.jobs` 的 per-owner 限制。
-- 11 种任务类型见 `config/task-types.json`（提交契约 + 给模型看的说明，单一来源）。
-- 提交后**立即结束轮次**，不要轮询；唤醒后再取产物。
-- 产物自动下载到 `<会话目录>/output/media/runninghub/batch-<id>/`。
-
----
-
-## 8. 本地开发（热更新）
-
-### 8.1 怎么把 profile 切到开发态
+### 4.1 把 profile 切到开发态
 
 改 `C:\Users\lj110\.dsh\profiles\desktop\package.json`，把三个包都写成 `link:` 绝对路径（正斜杠）：
 
@@ -251,7 +196,7 @@ Get-ChildItem C:\Users\lj110\.dsh\profiles\desktop\node_modules\@tmmk -Force |
 
 三个都应是 `Junction` 且指向 `E:\2026\dsh-plugins\media-suite\packages\*`。
 
-### 8.2 两套 HMR 机制（关键）
+### 4.2 两套 HMR 机制（关键）
 
 改动的文件位置决定要不要手动重载，因为**监听机制完全不同**：
 
@@ -259,6 +204,7 @@ Get-ChildItem C:\Users\lj110\.dsh\profiles\desktop\node_modules\@tmmk -Force |
 |---|---|---|
 | `client.js`（浏览器侧） | ✅ **保存即生效** | `@deepseek-ai/dsh-client-hmr` 按 `pollIntervalMs`（**默认 500ms**）stat 轮询 bundle，rev 变化就通知浏览器重拉 |
 | `index.js` / `lib/*.js`（Host 侧） | ❌ **必须手动重载** | `@deepseek-ai/dsh-hmr` 的 `root` 是空列表，**只监听 profile 配置，不监听模块文件** |
+| `config/task-types.json` | ✅ **启停插件即生效** | 类型目录的缓存按文件 mtime 失效，改完启停一次就行 |
 | profile `cordis.patch.yml` | ✅ 自动 | `dsh-hmr` 的配置监听 |
 | Config 普通字段（`surface` / `concurrency`） | ✅ 自动重载插件 | 配置变更走 Loader 正常路径 |
 | Config volatile 字段（`syncSite` / `jobsSite`） | ✅ 就地更新，**不重载** | `updateVolatile` 改写引用，fiber.config 身份不变 |
@@ -266,22 +212,23 @@ Get-ChildItem C:\Users\lj110\.dsh\profiles\desktop\node_modules\@tmmk -Force |
 **所以「没配 `root` 也能热加载 `client.js`」不是异常**：`client.js` 走的是 client-hmr 的
 轮询通道，和 `dsh-hmr` 的模块监听无关。
 
-### 8.3 Host 侧改完怎么重载
+### 4.3 手动重载（不用重启 DSH）
 
-`media-qwen` / `media-runninghub` 在 `plugin_manager list_plugins` 里带
-`readOnlyReason: unaddressable`（它们是壳的 patch 插进来的行，不是独立 bundle），**不能单独开关**。
-
-但 **`media-suite` 本身可以**——切一次 disabled → enabled，它 patch 插入的三行会一起重载：
-
+```bash
+plugin_manager set_plugin  target: include:media-runninghub  enabled: false
+plugin_manager set_plugin  target: include:media-runninghub  enabled: true
 ```
-plugin_manager set_plugin  target: include:media-suite  enabled: false
-plugin_manager set_plugin  target: include:media-suite  enabled: true
-```
+
+**provider 可以单独启停**（它们是壳的 patch 插进来的行，但 entry 本身可操作）。
+切 `media-suite` 也可以——它 patch 插入的三行会一起重载。
+
+**看返回值**：`"application": "applied"` 才算生效；`"overridden"` 说明配置有问题
+（见 §3.4）。
 
 **不要**给 `dsh-hmr` 配 `root` 指向工作区：junction 会让每次保存都触发整插件重载，
 频繁重载丢状态，且代码有语法错误时插件会直接失效。Host 侧改动频率低，手动重载更可控。
 
-### 8.4 这条路已验证可行
+### 4.4 这条路已验证可行
 
 `dependencies` 写 `link:` + pnpm 建 junction + 完整包名的 `load` id —— **三者同时成立时不崩**。
 
@@ -295,6 +242,31 @@ plugin_manager set_plugin  target: include:media-suite  enabled: true
 
 ---
 
-## 9. 已知限制
+## 5. npm 凭据
+
+需要**带 Bypass 2FA 的 granular access token**。
+
+**已持久化**：token 存在 Windows **User 级环境变量 `NODE_AUTH_TOKEN`**，
+`~/.npmrc` 写的是
+
+```
+//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+**发布前**（DSH 进程启动时还没有这个变量，要从 User 级读进进程）：
+
+```powershell
+$env:NODE_AUTH_TOKEN = [Environment]::GetEnvironmentVariable('NODE_AUTH_TOKEN', 'User')
+npm publish
+```
+
+普通 `.npmrc` token 若无 Bypass 2FA 会报 `403 Two-factor authentication ... required`。
+
+**token 失效时**（`npm whoami` 返回 401）需要重新生成 granular token，
+再执行一次上面的 `SetEnvironmentVariable`。
+
+---
+
+## 6. 已知限制
 
 - 若用户**另外单独** `add` 了某个 provider（它也进了 `dsh.profile.bundles`），它的 patch 会和壳的三行 patch 插同一 row id，可能冲突。暂未处理。
