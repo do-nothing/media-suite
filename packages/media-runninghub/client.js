@@ -583,7 +583,7 @@ window.__ModuleLoader__.load({
 .media-rh-collapse-caret { font-size: 12px; color: var(--dsw-alias-label-secondary); transition: transform 0.15s ease; }
 .media-rh-collapse.is-open .media-rh-collapse-caret { transform: rotate(180deg); }
 .media-rh-collapse-body { margin-top: 8px; }
-.media-rh-status-wrap { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; background: var(--dsw-alias-bg-layer-1); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 12px; }
+.media-rh-status-wrap { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; min-height: 0; height: 100%; box-sizing: border-box; background: var(--dsw-alias-bg-layer-1); border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 12px; }
 .media-rh-status-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .media-rh-status-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .media-rh-auto { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
@@ -602,9 +602,17 @@ window.__ModuleLoader__.load({
 .media-rh-batch-jump-input { width: 72px; height: 24px; padding: 0 6px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 6px; }
 .media-rh-batch-jump-input:disabled { opacity: 0.4; }
 .media-rh-batch-jump-error { font-size: 12px; color: var(--dsw-alias-label-error, #d33); }
-.media-rh-table-wrap { overflow-x: auto; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
+/* The table takes whatever vertical space is left in the tab, so it fills a
+   full-height window and still shrinks to its content when there is little of
+   it. A fixed max-height got both cases wrong: too short on a tall window, and
+   it scrolled a handful of rows that already fit. min-height: 0 is what lets
+   a flex child actually shrink instead of overflowing its parent. */
+.media-rh-table-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
 .media-rh-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 18px; }
-.media-rh-table th { text-align: left; padding: 8px 10px; font-weight: 600; color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-layer-2); border-bottom: 0.5px solid var(--dsw-alias-border-l1); white-space: nowrap; }
+/* The header stays put while the rows scroll under it, so the column labels
+   remain readable in a long batch. Sticky positioning needs the scrolling
+   ancestor to be the wrap above, which is why the two rules belong together. */
+.media-rh-table th { position: sticky; top: 0; z-index: 1; text-align: left; padding: 8px 10px; font-weight: 600; color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-layer-2); border-bottom: 0.5px solid var(--dsw-alias-border-l1); white-space: nowrap; }
 .media-rh-table td { padding: 8px 10px; color: var(--dsw-alias-label-primary); border-bottom: 0.5px solid var(--dsw-alias-border-l1); vertical-align: middle; }
 .media-rh-table tr:last-child td { border-bottom: none; }
 .media-rh-table .is-right { text-align: right; }

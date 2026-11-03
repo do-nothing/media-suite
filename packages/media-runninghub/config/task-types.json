@@ -24,7 +24,12 @@
           "required": false,
           "nodeId": "13",
           "fieldName": "audio",
-          "accept": [".mp3", ".wav", ".m4a", ".m3a"]
+          "accept": [
+            ".mp3",
+            ".wav",
+            ".m4a",
+            ".m3a"
+          ]
         },
         {
           "name": "emotionAudio",
@@ -33,7 +38,12 @@
           "required": false,
           "nodeId": "15",
           "fieldName": "audio",
-          "accept": [".mp3", ".wav", ".m4a", ".m3a"]
+          "accept": [
+            ".mp3",
+            ".wav",
+            ".m4a",
+            ".m3a"
+          ]
         }
       ],
       "fixedOverrides": []
@@ -53,7 +63,11 @@
           "required": true,
           "nodeId": "133",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png"
+          ]
         },
         {
           "name": "audio",
@@ -62,7 +76,12 @@
           "required": true,
           "nodeId": "204",
           "fieldName": "audio",
-          "accept": [".mp3", ".wav", ".m4a", ".m3a"]
+          "accept": [
+            ".mp3",
+            ".wav",
+            ".m4a",
+            ".m3a"
+          ]
         },
         {
           "name": "text",
@@ -111,6 +130,47 @@
       "fixedOverrides": []
     },
     {
+      "typeId": "music-yue2-cover",
+      "version": 1,
+      "displayName": "YuE2 改词翻唱（同曲新词）",
+      "description": "上传一首原曲 + 必填新歌词：工作流先转写原曲旋律，再用 YuE2 按相同旋律和新歌词重唱，属于「同曲新词」的改词翻唱（不是保留原歌手音色的声音替换）。风格用标签式英文描述（留空=工作流预置 Chinese Folk 女声民谣）；歌词支持 [Verse]/[Chorus] 等分段标记，段间空行，长度要和原曲容量匹配以免硬截断。成品为节点 7 输出的 FLAC（前缀 yue2_cover）；结果里可能附带一个占位 zip（节点 69，与主链路无关），取音频时认节点 7 即可。种子固定（同输入可复现），不对外暴露。",
+      "workflowId": "2109881205100474370",
+      "instanceType": "default",
+      "params": [
+        {
+          "name": "audio",
+          "label": "原曲音频（旋律来源）",
+          "type": "audio",
+          "required": true,
+          "nodeId": "1",
+          "fieldName": "audio",
+          "accept": [
+            ".mp3",
+            ".wav",
+            ".flac",
+            ".m4a"
+          ]
+        },
+        {
+          "name": "lyrics",
+          "label": "新歌词（必填；支持 [Verse]/[Chorus] 等分段标记，段间空行）",
+          "type": "text",
+          "required": true,
+          "nodeId": "5",
+          "fieldName": "prompt"
+        },
+        {
+          "name": "style",
+          "label": "风格（标签式英文描述；留空=工作流预置 Chinese Folk 女声民谣）",
+          "type": "text",
+          "required": false,
+          "nodeId": "4",
+          "fieldName": "prompt"
+        }
+      ],
+      "fixedOverrides": []
+    },
+    {
       "typeId": "image-edit-banana2",
       "version": 2,
       "displayName": "全能图片（文生图 / 多图编辑，Nano Banana 2）",
@@ -134,7 +194,12 @@
           "default": "",
           "nodeId": "3",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image2",
@@ -144,7 +209,12 @@
           "default": "",
           "nodeId": "7",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image3",
@@ -154,7 +224,12 @@
           "default": "",
           "nodeId": "8",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image4",
@@ -164,7 +239,12 @@
           "default": "",
           "nodeId": "17",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image5",
@@ -174,7 +254,12 @@
           "default": "",
           "nodeId": "11",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image6",
@@ -184,7 +269,12 @@
           "default": "",
           "nodeId": "15",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image7",
@@ -194,7 +284,12 @@
           "default": "",
           "nodeId": "12",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image8",
@@ -204,7 +299,12 @@
           "default": "",
           "nodeId": "13",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image9",
@@ -214,7 +314,12 @@
           "default": "",
           "nodeId": "16",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image10",
@@ -224,7 +329,12 @@
           "default": "",
           "nodeId": "14",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "aspectRatio",
@@ -232,7 +342,23 @@
           "type": "enum",
           "required": false,
           "default": "3:4",
-          "enum": ["auto", "1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"],
+          "enum": [
+            "auto",
+            "1:1",
+            "1:4",
+            "1:8",
+            "2:3",
+            "3:2",
+            "3:4",
+            "4:1",
+            "4:3",
+            "4:5",
+            "5:4",
+            "8:1",
+            "9:16",
+            "16:9",
+            "21:9"
+          ],
           "nodeId": "2",
           "fieldName": "aspectRatio"
         }
@@ -300,7 +426,12 @@
           "required": true,
           "nodeId": "177",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "aspectRatio",
@@ -347,7 +478,12 @@
           "required": true,
           "nodeId": "420",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image2",
@@ -357,7 +493,12 @@
           "default": "",
           "nodeId": "432",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image3",
@@ -367,7 +508,12 @@
           "default": "",
           "nodeId": "433",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image4",
@@ -377,7 +523,12 @@
           "default": "",
           "nodeId": "436",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image5",
@@ -387,7 +538,12 @@
           "default": "",
           "nodeId": "435",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image6",
@@ -397,7 +553,12 @@
           "default": "",
           "nodeId": "434",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "aspectRatio",
@@ -436,7 +597,12 @@
           "required": true,
           "nodeId": "4",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "prompt",
@@ -482,7 +648,12 @@
           "required": true,
           "nodeId": "6",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "lastFrame",
@@ -491,7 +662,12 @@
           "required": true,
           "nodeId": "4",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "prompt",
@@ -545,7 +721,12 @@
           "required": true,
           "nodeId": "51",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image2",
@@ -555,7 +736,12 @@
           "default": "None",
           "nodeId": "49",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image3",
@@ -565,7 +751,12 @@
           "default": "None",
           "nodeId": "50",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image4",
@@ -575,7 +766,12 @@
           "default": "None",
           "nodeId": "43",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image5",
@@ -585,7 +781,12 @@
           "default": "None",
           "nodeId": "19",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image6",
@@ -595,7 +796,12 @@
           "default": "None",
           "nodeId": "23",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image7",
@@ -605,7 +811,12 @@
           "default": "None",
           "nodeId": "199",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image8",
@@ -615,7 +826,12 @@
           "default": "None",
           "nodeId": "200",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "image9",
@@ -625,7 +841,12 @@
           "default": "None",
           "nodeId": "201",
           "fieldName": "image",
-          "accept": [".jpg", ".jpeg", ".png", ".webp"]
+          "accept": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+          ]
         },
         {
           "name": "audio",
@@ -635,7 +856,14 @@
           "default": "None",
           "nodeId": "48",
           "fieldName": "audio",
-          "accept": [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"]
+          "accept": [
+            ".wav",
+            ".mp3",
+            ".m4a",
+            ".aac",
+            ".flac",
+            ".ogg"
+          ]
         },
         {
           "name": "audio2",
@@ -645,7 +873,14 @@
           "default": "None",
           "nodeId": "14",
           "fieldName": "audio",
-          "accept": [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"]
+          "accept": [
+            ".wav",
+            ".mp3",
+            ".m4a",
+            ".aac",
+            ".flac",
+            ".ogg"
+          ]
         },
         {
           "name": "audio3",
@@ -655,7 +890,14 @@
           "default": "None",
           "nodeId": "15",
           "fieldName": "audio",
-          "accept": [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"]
+          "accept": [
+            ".wav",
+            ".mp3",
+            ".m4a",
+            ".aac",
+            ".flac",
+            ".ogg"
+          ]
         },
         {
           "name": "video",
@@ -665,7 +907,13 @@
           "default": "",
           "nodeId": "27",
           "fieldName": "video",
-          "accept": [".mp4", ".mov", ".webm", ".mkv", ".avi"]
+          "accept": [
+            ".mp4",
+            ".mov",
+            ".webm",
+            ".mkv",
+            ".avi"
+          ]
         },
         {
           "name": "video2",
@@ -675,7 +923,13 @@
           "default": "",
           "nodeId": "25",
           "fieldName": "video",
-          "accept": [".mp4", ".mov", ".webm", ".mkv", ".avi"]
+          "accept": [
+            ".mp4",
+            ".mov",
+            ".webm",
+            ".mkv",
+            ".avi"
+          ]
         },
         {
           "name": "video3",
@@ -685,7 +939,13 @@
           "default": "",
           "nodeId": "26",
           "fieldName": "video",
-          "accept": [".mp4", ".mov", ".webm", ".mkv", ".avi"]
+          "accept": [
+            ".mp4",
+            ".mov",
+            ".webm",
+            ".mkv",
+            ".avi"
+          ]
         },
         {
           "name": "durationSeconds",
@@ -733,7 +993,15 @@
           "required": true,
           "nodeId": "1",
           "fieldName": "audio",
-          "accept": [".mp3", ".wav", ".m4a", ".m3a", ".flac", ".aac", ".ogg"]
+          "accept": [
+            ".mp3",
+            ".wav",
+            ".m4a",
+            ".m3a",
+            ".flac",
+            ".aac",
+            ".ogg"
+          ]
         }
       ],
       "fixedOverrides": []

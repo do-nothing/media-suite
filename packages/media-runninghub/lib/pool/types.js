@@ -7,7 +7,7 @@
  * against an archived graph: RunningHub's own error is the authority.
  */
 
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { poolConfig } from './config.js'
@@ -76,12 +76,20 @@ export class TaskType {
   }
 }
 
-// The catalog is small and static for the process lifetime; load it once.
+// The catalog is small, so it is cached — but keyed on the file's mtime rather
+// than held for the process lifetime. Editing task-types.json is a normal
+// maintenance step, and a plain module-level cache made those edits invisible
+// until the whole app restarted: restarting the plugin re-ran apply() but the
+// module itself stayed loaded, so the stale cache answered every query. With the
+// mtime in the key, a plugin restart is enough.
 let cache = null
+let cacheMtime = 0
 
 /** Load and parse all task types. Throws DefinitionError on malformed data. */
 export async function loadTaskTypes() {
-  if (cache) return cache
+  const info = await stat(TASK_TYPES_PATH).catch(() => null)
+  const mtime = info === null ? 0 : Math.trunc(info.mtimeMs)
+  if (cache !== null && mtime === cacheMtime) return cache
   let raw
   try {
     raw = JSON.parse(await readFile(TASK_TYPES_PATH, 'utf8'))
@@ -104,6 +112,7 @@ export async function loadTaskTypes() {
     }
   }
   cache = types
+  cacheMtime = mtime
   return types
 }
 
