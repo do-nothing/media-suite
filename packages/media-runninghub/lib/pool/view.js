@@ -14,6 +14,29 @@
 export const POOL_VIEW_KEYS = ['currentBatchId', 'latestBatchId', 'batches', 'counts', 'tasks']
 
 /**
+ * How many pending tasks may be dispatched right now.
+ *
+ * The ceiling is the pool's global concurrency limit: the number of tasks
+ * RunningHub is allowed to run at the same time. Tasks already dispatched
+ * occupy slots, so only the remainder may be sent. A limit that is missing or
+ * unusable falls back to 2 rather than to "no limit" — an unbounded ceiling
+ * would submit the whole queue to RunningHub at once, which is exactly what the
+ * setting exists to prevent.
+ *
+ * @param tasks - the outstanding rows, each with a `status` and a `task_id`.
+ * @param concurrency - the configured ceiling.
+ * @returns how many pending tasks to dispatch on this pass.
+ */
+export function dispatchBudget(tasks, concurrency) {
+  const limit = Number(concurrency)
+  const ceiling = Number.isFinite(limit) && limit >= 1 ? Math.floor(limit) : 2
+  const rows = Array.isArray(tasks) ? tasks : []
+  const inFlight = rows.filter((t) => t?.status === 'DISPATCHED' && t?.task_id).length
+  const pending = rows.filter((t) => t?.status === 'PENDING').length
+  return { ceiling, inFlight, pending, free: Math.max(0, ceiling - inFlight), dispatch: Math.max(0, Math.min(pending, ceiling - inFlight)) }
+}
+
+/**
  * Build one `poolStatus` reply.
  *
  * Both callers — the settings board (`index.js`) and the `runninghub_workflow_status`

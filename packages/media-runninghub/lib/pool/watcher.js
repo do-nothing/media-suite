@@ -10,6 +10,7 @@
  */
 
 import * as client from './client.js'
+import { dispatchBudget } from './view.js'
 import * as store from './store.js'
 import { downloadFile } from './upload.js'
 
@@ -23,9 +24,10 @@ async function tick(apiKey, site, job, cfg) {
   if (tasks.length === 0) return { drained: true }
 
   // Dispatch pending tasks, bounded by the global concurrency budget.
-  let inFlight = tasks.filter((t) => t.status === 'DISPATCHED' && t.task_id).length
+  const budget = dispatchBudget(tasks, cfg.concurrency)
+  let inFlight = budget.inFlight
   for (const task of tasks.filter((t) => t.status === 'PENDING')) {
-    if (inFlight >= cfg.concurrency) break
+    if (inFlight >= budget.ceiling) break
     const request = JSON.parse(task.request_json)
     const nodes = JSON.parse(task.node_json ?? '[]')
     const payload = { apiKey, ...request }
@@ -123,10 +125,29 @@ function safeParseRequest(text) {
 }
 
 /**
+ * The cancel hook of the watcher started last, or null when none is running.
+ *
+ * A plugin reload replaces the module, but the loop it started keeps running:
+ * it holds the old settings and would poll the same ledger a second time. The
+ * caller cancels it before the new instance takes over.
+ */
+let lastCancel = null
+
+/** Stop the watcher that is running now, if any. */
+export function cancelWatcher() {
+  const cancel = lastCancel
+  lastCancel = null
+  cancel?.()
+}
+
+/**
  * Start the single global watcher as a `ctx.jobs` job owned by the given
  * session. The job settles when the pool drains, which appends `job/settled`
  * to the owning session and wakes it.
  *
+ * @param cfg - the pool settings. A function is read afresh on every tick, so
+ *   changing the concurrency ceiling takes effect without a restart; a plain
+ *   object is used as-is.
  * @param onFinish - called once when the loop ends, whatever ended it. The
  *   detached path uses it to release the singleton guard: a loop with no owning
  *   job is never reported through the registry, so nothing else would clear it.
@@ -135,6 +156,15 @@ function safeParseRequest(text) {
 export function startWatcher(ctx, site, cfg, agent, onFinish) {
   let cancelled = false
   let wakeSleep
+
+  const readConfig = () => {
+    const value = typeof cfg === 'function' ? cfg() : cfg
+    return {
+      concurrency: Number(value?.concurrency) > 0 ? Number(value.concurrency) : 2,
+      pollIntervalSeconds: Number(value?.pollIntervalSeconds) > 0 ? Number(value.pollIntervalSeconds) : 30,
+      defaultInstanceType: value?.defaultInstanceType ?? 'default',
+    }
+  }
 
   const done = (async () => {
     let apiKey
@@ -145,6 +175,11 @@ export function startWatcher(ctx, site, cfg, agent, onFinish) {
     if (!apiKey) return { status: 'failed', detail: '未配置 RUNNINGHUB_JOBS_API_KEY' }
 
     while (!cancelled) {
+      // The pool settings can change while the watcher runs — the concurrency
+      // ceiling in particular is meant to take effect without a restart. Read
+      // them fresh every tick rather than holding one snapshot for the life of
+      // the loop.
+      const cfg = readConfig()
       let outcome
       try {
         outcome = await tick(apiKey, site, { updateProgress: (line) => job?.updateProgress?.(line) }, cfg)
@@ -171,6 +206,12 @@ export function startWatcher(ctx, site, cfg, agent, onFinish) {
     },
     done,
   }
+
+  // The caller may need to stop this loop when the plugin reloads. A reload
+  // happens whenever an ordinary Config field changes — the concurrency ceiling
+  // in particular — and the old loop would keep running with the old settings
+  // while the new one starts a second poller over the same ledger.
+  lastCancel = hooks.cancel
 
   const jobs = ctx.get('jobs')
   if (jobs === undefined) {

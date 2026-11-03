@@ -29,6 +29,7 @@ import {
   registerWorkflowTools,
   ensurePoolWatcher,
   resumeOutstanding,
+  stopWatcher,
   client as rhClient,
   store as poolStore,
   siteOfConfig as poolSiteOfConfig,
@@ -510,8 +511,16 @@ export function apply(ctx) {
     // the app restarted is never polled again: the board keeps showing it as
     // running and its outputs are never downloaded, even though RunningHub has
     // already finished it.
+    //
+    // The disposer matters as much as the effect. Changing an ordinary Config
+    // field — the concurrency ceiling in particular — reloads the plugin, and
+    // the loop the previous instance started would keep running with the old
+    // settings while the new one starts a second poller over the same ledger.
     ctx.effect(() => {
       void resumeOutstanding(ctx)
+      return () => {
+        stopWatcher()
+      }
     }, 'media-runninghub: resume the pool watcher')
   }
 }

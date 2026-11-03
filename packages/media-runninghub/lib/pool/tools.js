@@ -14,8 +14,8 @@ import { poolConfig } from './config.js'
 import * as store from './store.js'
 import { buildPayload, getTaskType, loadTaskTypes } from './types.js'
 import { classifyFileValue, uploadFile } from './upload.js'
-import { poolView, typeNameMap } from './view.js'
-import { startWatcher } from './watcher.js'
+import { poolView, typeNameMap, dispatchBudget } from './view.js'
+import { startWatcher, cancelWatcher } from './watcher.js'
 
 // The single global watcher's identity, or null when the pool has drained.
 // Whatever session started the watcher owns it; later submitters reuse it.
@@ -89,6 +89,16 @@ function createSubmitTool(ctx) {
           taskIds: { type: 'array', items: { type: 'integer' } },
           submitted: { type: 'integer', description: '真正入队的任务数' },
           status: { type: 'string', description: 'ok=全部提交；partial=部分提交；needs_input=缺参数未提交；rejected=全部被拒' },
+          concurrency: {
+            type: 'object',
+            description: '任务池的并发状态：上限、在飞数、排队数。任务已入队但要等并发空位才会真正提交给 RunningHub。',
+            properties: {
+              limit: { type: 'integer', description: '并发上限（任务池设置里的并发数）' },
+              inFlight: { type: 'integer', description: '当前在 RunningHub 上运行的任务数' },
+              queued: { type: 'integer', description: '已入队但尚未提交的任务数' },
+            },
+            additionalProperties: false,
+          },
           needsInput: {
             type: 'array',
             description: '缺参数的任务清单；这些任务没有提交、也没有上传',
@@ -163,6 +173,26 @@ function createSubmitTool(ctx) {
             `已提交：批次 #${value.batchId}，${value.taskIds.length} 个任务`
             + `（watcher: ${value.watcher}）`,
           )
+        }
+
+        // Say plainly when the queue is longer than the concurrency ceiling
+        // allows. The tasks are accepted and will run, but only `limit` of them
+        // run at a time — without this the caller cannot tell a queued task
+        // from a running one, and may read a slow batch as a broken one.
+        const cc = value.concurrency
+        if (cc && typeof cc === 'object') {
+          const limit = Number(cc.limit) || 0
+          const inFlight = Number(cc.inFlight) || 0
+          const queued = Number(cc.queued) || 0
+          if (limit > 0 && queued + inFlight > limit) {
+            lines.push(
+              `并发状态：上限 ${limit}，在飞 ${inFlight}，排队 ${queued}。`
+              + `排队中的任务要等并发空位才会真正提交给 RunningHub，`
+              + `这不是失败——不要重复提交。`,
+            )
+          } else {
+            lines.push(`并发状态：上限 ${limit}，在飞 ${inFlight}，排队 ${queued}。`)
+          }
         }
 
         return [{ type: 'text', text: lines.join('\n') }]
@@ -250,12 +280,24 @@ function createSubmitTool(ctx) {
         watcherAction = 'started'
       }
 
+      // Report where the pool stands, so a caller that queued more than the
+      // concurrency ceiling allows can tell the difference between "sent" and
+      // "waiting for a slot" without reading the ledger itself.
+      let concurrency
+      try {
+        const budget = dispatchBudget(await store.outstandingTasks(), poolConfig().concurrency)
+        concurrency = { limit: budget.ceiling, inFlight: budget.inFlight, queued: budget.pending }
+      } catch {
+        concurrency = undefined
+      }
+
       return {
         status: needsInput.length > 0 ? 'partial' : 'ok',
         batchId,
         taskIds: ids,
         submitted: ids.length,
         watcher: watcherAction,
+        ...(concurrency ? { concurrency } : {}),
         ...(needsInput.length > 0 ? { needsInput } : {}),
         ...(errors.length > 0 ? { errors } : {}),
       }
@@ -439,7 +481,9 @@ function startWatcherJob(ctx, site, agent) {
   if (detachedWatcher) return
   // The detached loop has to release the guard when it ends. Nothing else would:
   // it registers no job, so the registry never reports it as settled.
-  const jobId = startWatcher(ctx, site, poolConfig, agent, () => {
+  // The settings are read through a getter so a new concurrency ceiling takes
+  // effect on the next tick instead of waiting for the plugin to reload.
+  const jobId = startWatcher(ctx, site, () => poolConfig(), agent, () => {
     detachedWatcher = false
   })
   if (jobId === undefined) {
@@ -455,6 +499,21 @@ function startWatcherJob(ctx, site, agent) {
   jobs?.events.subscribe({ owner: ownerId }, (event) => {
     if (event.type === 'settled' && event.job.id === jobId) activeWatcher = null
   })
+}
+
+/**
+ * Stop the watcher and release both singleton guards.
+ *
+ * A plugin reload replaces this module, but the loop it started keeps running:
+ * it holds the settings the plugin had before the reload, so a change to the
+ * concurrency ceiling would not reach it, and a second loop would poll the same
+ * ledger. The plugin calls this from its effect disposer, before the new
+ * instance takes over.
+ */
+export function stopWatcher() {
+  cancelWatcher()
+  activeWatcher = null
+  detachedWatcher = false
 }
 
 function siteOfConfig(ctx) {

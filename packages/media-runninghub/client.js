@@ -1420,8 +1420,6 @@ window.__ModuleLoader__.load({
       remoteRef.current = ctx.get('remote.mediaRunningHub')
       const viewBatchRef = React.useRef(null)
       const [pool, setPool] = React.useState(null) // { status, currentBatchId, counts, tasks, batches }
-      const poolRef = React.useRef(null)
-      poolRef.current = pool
       const [viewBatch, setViewBatch] = React.useState(null) // null = current batch
       const [loading, setLoading] = React.useState(false)
       const [error, setError] = React.useState(null)
@@ -1572,17 +1570,12 @@ window.__ModuleLoader__.load({
           if (!autoRef.current) return
           // A hidden tab has nobody looking at it, so do not even ask the Host.
           if (!visibleRef.current) return
-          // A drained pool whose batch has not moved produces the same board
-          // every time. Asking again would re-render it for nothing. The check
-          // is on the last reply we rendered, so a task that appears elsewhere
-          // still wakes the board up on the next tick: the counts change and the
-          // shape no longer matches.
-          const last = lastShapeRef.current
-          if (last !== null) {
-            const drained = last.includes('PENDING:0') && last.includes('DISPATCHED:0')
-            const sameBatch = last.startsWith(`b:${Number(poolRef.current?.currentBatchId) || 0}|l:${Number(poolRef.current?.latestBatchId) || 0}`)
-            if (drained && sameBatch) return
-          }
+          // Ask every time. Skipping the request when the pool looked drained
+          // was wrong: not asking is the only way to learn that something
+          // changed, so a drained board would never notice a new batch. The
+          // reply that comes back is compared against the last one in
+          // `applyPool`, and an unchanged reply is dropped there — the board
+          // still does not re-render, but it does ask.
           refresh()
         }, 30000)
         return () => clearInterval(id)

@@ -448,3 +448,40 @@ test('the shape of a reply is null when there is no reply', async () => {
   assert.equal(poolShape(undefined), null)
   assert.equal(poolShape('nope'), null)
 })
+
+// --- concurrency budget ----------------------------------------------------
+
+test('the dispatch budget honours the concurrency ceiling', async () => {
+  const { dispatchBudget } = await import('../lib/pool/view.js')
+  const pending = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1, status: 'PENDING', task_id: null }))
+  const flying = (n) => Array.from({ length: n }, (_, i) => ({ id: 100 + i, status: 'DISPATCHED', task_id: `t${i}` }))
+
+  // Nothing in flight: the ceiling is the whole budget.
+  assert.equal(dispatchBudget([...pending(5)], 2).dispatch, 2)
+  assert.equal(dispatchBudget([...pending(5)], 2).free, 2)
+
+  // Two already flying with a ceiling of two: nothing may be dispatched.
+  assert.equal(dispatchBudget([...flying(2), ...pending(5)], 2).dispatch, 0)
+  assert.equal(dispatchBudget([...flying(2), ...pending(5)], 2).free, 0)
+
+  // One of two slots free: exactly one goes out.
+  assert.equal(dispatchBudget([...flying(1), ...pending(5)], 2).dispatch, 1)
+
+  // A row that is DISPATCHED but has no task id does not occupy a slot.
+  assert.equal(dispatchBudget([{ id: 1, status: 'DISPATCHED', task_id: null }, ...pending(3)], 2).dispatch, 2)
+
+  // Fewer pending than the ceiling: only what exists is dispatched.
+  assert.equal(dispatchBudget([...pending(1)], 10).dispatch, 1)
+})
+
+test('the dispatch budget refuses an unusable ceiling', async () => {
+  const { dispatchBudget } = await import('../lib/pool/view.js')
+  const pending = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1, status: 'PENDING', task_id: null }))
+
+  // A missing or broken limit falls back to 2, never to "no limit".
+  for (const bad of [undefined, null, 0, -1, NaN, 'x']) {
+    const b = dispatchBudget([...pending(9)], bad)
+    assert.equal(b.ceiling, 2, `ceiling for ${String(bad)}`)
+    assert.equal(b.dispatch, 2, `dispatch for ${String(bad)}`)
+  }
+})
