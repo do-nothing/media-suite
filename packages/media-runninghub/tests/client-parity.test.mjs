@@ -44,7 +44,7 @@ function loadClientLogic() {
   const factory = new Function(`${block}
     return { POOL_VIEW_KEYS, SAVE_PATH_WIDTH, anchorBatchOf, isBatchDetail, batchNav, countByStatus,
              outstandingOf, formatDuration, taskDuration, staleSeconds,
-             clipFront, displayWidth, formatSavePath }
+             clipFront, displayWidth, formatSavePath, poolShape }
   `)
   return factory()
 }
@@ -54,11 +54,23 @@ const client = loadClientLogic()
 test('the block exists and exposes the expected helpers', () => {
   for (const name of ['anchorBatchOf', 'isBatchDetail', 'batchNav', 'countByStatus',
     'outstandingOf', 'formatDuration', 'taskDuration', 'staleSeconds',
-    'clipFront', 'displayWidth', 'formatSavePath']) {
+    'clipFront', 'displayWidth', 'formatSavePath', 'poolShape']) {
     assert.equal(typeof client[name], 'function', `${name} must be declared in client.js`)
   }
   assert.deepEqual(client.POOL_VIEW_KEYS, view.POOL_VIEW_KEYS)
   assert.equal(client.SAVE_PATH_WIDTH, view.SAVE_PATH_WIDTH)
+})
+
+test('poolShape matches', () => {
+  const replies = [
+    null,
+    undefined,
+    { status: 'ok', currentBatchId: 3, latestBatchId: 12, counts: { total: 2, PENDING: 0, DISPATCHED: 1, SUCCESS: 1 }, tasks: [{ id: 10, status: 'DISPATCHED' }, { id: 9, status: 'SUCCESS' }] },
+    { status: 'ok', currentBatchId: 0, latestBatchId: 12, counts: { total: 0 }, tasks: [] },
+  ]
+  for (const reply of replies) {
+    assert.equal(client.poolShape(reply), view.poolShape(reply), JSON.stringify(reply))
+  }
 })
 
 test('anchorBatchOf matches', () => {

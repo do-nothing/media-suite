@@ -424,3 +424,27 @@ test('one in-flight row is enough to need a resume', () => {
   const counts = { total: 28, PENDING: 0, DISPATCHED: 1, SUCCESS: 27 }
   assert.equal(outstandingOf(counts), 1)
 })
+
+// --- reply shape -----------------------------------------------------------
+
+test('the shape of a reply changes when the pool changes', async () => {
+  const { poolShape } = await import('../lib/pool/view.js')
+  const base = {
+    status: 'ok',
+    currentBatchId: 3,
+    latestBatchId: 12,
+    counts: { total: 2, PENDING: 0, DISPATCHED: 1, SUCCESS: 1 },
+    tasks: [{ id: 10, status: 'DISPATCHED' }, { id: 9, status: 'SUCCESS' }],
+  }
+  assert.equal(poolShape(base), poolShape({ ...base, tasks: [...base.tasks] }))
+  assert.notEqual(poolShape(base), poolShape({ ...base, currentBatchId: 4 }))
+  assert.notEqual(poolShape(base), poolShape({ ...base, counts: { ...base.counts, PENDING: 1 } }))
+  assert.notEqual(poolShape(base), poolShape({ ...base, tasks: [{ id: 10, status: 'SUCCESS' }, { id: 9, status: 'SUCCESS' }] }))
+})
+
+test('the shape of a reply is null when there is no reply', async () => {
+  const { poolShape } = await import('../lib/pool/view.js')
+  assert.equal(poolShape(null), null)
+  assert.equal(poolShape(undefined), null)
+  assert.equal(poolShape('nope'), null)
+})

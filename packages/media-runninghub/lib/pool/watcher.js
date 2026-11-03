@@ -127,9 +127,12 @@ function safeParseRequest(text) {
  * session. The job settles when the pool drains, which appends `job/settled`
  * to the owning session and wakes it.
  *
- * @returns the registry-issued job id, or undefined when ctx.jobs is absent.
+ * @param onFinish - called once when the loop ends, whatever ended it. The
+ *   detached path uses it to release the singleton guard: a loop with no owning
+ *   job is never reported through the registry, so nothing else would clear it.
+ * @returns the registry-issued job id, or undefined when the loop runs detached.
  */
-export function startWatcher(ctx, site, cfg, agent) {
+export function startWatcher(ctx, site, cfg, agent, onFinish) {
   let cancelled = false
   let wakeSleep
 
@@ -172,6 +175,7 @@ export function startWatcher(ctx, site, cfg, agent) {
   const jobs = ctx.get('jobs')
   if (jobs === undefined) {
     // No job registry: run the loop detached so the pool still drains.
+    done.then(() => onFinish?.(), () => onFinish?.())
     done.catch(() => {})
     return undefined
   }
@@ -182,6 +186,11 @@ export function startWatcher(ctx, site, cfg, agent) {
   // no session to wake, so run the loop detached instead — the pool still
   // drains and the board shows the results on its next refresh.
   if (agent?.id === undefined) {
+    // A detached loop is invisible to the registry, so no `settled` event will
+    // ever arrive for it. It has to announce its own end, or the singleton guard
+    // that keeps a second poller from starting would stay set for the life of
+    // the process and the next batch would never be watched.
+    done.then(() => onFinish?.(), () => onFinish?.())
     done.catch(() => {})
     return undefined
   }

@@ -162,6 +162,38 @@ export function isBatchDetail(rows, desired) {
 }
 
 /**
+ * A comparable summary of a `poolStatus` reply.
+ *
+ * The reply is a fresh object every time, so "did anything change?" cannot be
+ * answered by identity. This reduces it to the parts the board actually shows:
+ * which batch is in focus, how many tasks sit in each state, and how many rows
+ * there are. Two replies with the same shape render the same board, so the
+ * second one can be dropped instead of causing a re-render.
+ *
+ * @param reply - a `poolStatus` reply, or null.
+ * @returns a string summary, or null when there is nothing to compare.
+ */
+export function poolShape(reply) {
+  if (reply === null || typeof reply !== 'object') return null
+  const counts = reply.counts ?? {}
+  const parts = [
+    `b:${Number(reply.currentBatchId) || 0}`,
+    `l:${Number(reply.latestBatchId) || 0}`,
+    `n:${Number(counts.total) || 0}`,
+  ]
+  for (const status of ['PENDING', 'DISPATCHED', 'SUCCESS', 'FAILED', 'SUBMIT_FAILED', 'CANCELLED']) {
+    parts.push(`${status}:${Number(counts[status]) || 0}`)
+  }
+  const tasks = Array.isArray(reply.tasks) ? reply.tasks : []
+  parts.push(`t:${tasks.length}`)
+  // The task ids matter as much as the counts: a task can finish and another
+  // start within the same tick, leaving the counts unchanged but the rows
+  // different.
+  for (const task of tasks) parts.push(`i${Number(task?.id) || 0}:${String(task?.status ?? '')}`)
+  return parts.join('|')
+}
+
+/**
  * Batch navigation state for the board.
  *
  * @param pool - a `poolStatus` reply, or null.

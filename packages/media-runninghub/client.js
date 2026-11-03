@@ -1012,6 +1012,35 @@ window.__ModuleLoader__.load({
         : `${pick.node_id ?? 'output'}.${String(pick.output_type ?? '').toLowerCase()}`
       return { url: pick.url, kind, name }
     }
+
+    /**
+     * A comparable summary of a `poolStatus` reply.
+     *
+     * The reply is a fresh object every time, so "did anything change?" cannot be
+     * answered by identity. This reduces it to the parts the board actually shows:
+     * which batch is in focus, how many tasks sit in each state, and which rows
+     * are on screen. Two replies with the same shape render the same board, so
+     * the second one can be dropped instead of causing a re-render.
+     */
+    function poolShape(reply) {
+      if (reply === null || typeof reply !== 'object') return null
+      const counts = reply.counts ?? {}
+      const parts = [
+        `b:${Number(reply.currentBatchId) || 0}`,
+        `l:${Number(reply.latestBatchId) || 0}`,
+        `n:${Number(counts.total) || 0}`,
+      ]
+      for (const status of ['PENDING', 'DISPATCHED', 'SUCCESS', 'FAILED', 'SUBMIT_FAILED', 'CANCELLED']) {
+        parts.push(`${status}:${Number(counts[status]) || 0}`)
+      }
+      const tasks = Array.isArray(reply.tasks) ? reply.tasks : []
+      parts.push(`t:${tasks.length}`)
+      // The task ids matter as much as the counts: a task can finish and another
+      // start within the same tick, leaving the counts unchanged but the rows
+      // different.
+      for (const task of tasks) parts.push(`i${Number(task?.id) || 0}:${String(task?.status ?? '')}`)
+      return parts.join('|')
+    }
     // --- end pure view logic -------------------------------------------------
 
     /** A short human cost summary from a ledger cost object. */
@@ -1380,7 +1409,7 @@ window.__ModuleLoader__.load({
     }
 
     /** The live task-pool dashboard: counts, batch navigation, and per-row actions. */
-    function PoolDashboard({ ctx, t }) {
+    function PoolDashboard({ ctx, t, visible }) {
       // `ctx.get()` hands back a fresh proxy object on every call, so holding it
       // in a plain const makes every useCallback below a new function each
       // render. That re-ran the mount effect, which called load, which set state,
@@ -1391,6 +1420,8 @@ window.__ModuleLoader__.load({
       remoteRef.current = ctx.get('remote.mediaRunningHub')
       const viewBatchRef = React.useRef(null)
       const [pool, setPool] = React.useState(null) // { status, currentBatchId, counts, tasks, batches }
+      const poolRef = React.useRef(null)
+      poolRef.current = pool
       const [viewBatch, setViewBatch] = React.useState(null) // null = current batch
       const [loading, setLoading] = React.useState(false)
       const [error, setError] = React.useState(null)
@@ -1408,6 +1439,29 @@ window.__ModuleLoader__.load({
       autoRef.current = auto
       viewBatchRef.current = viewBatch
       const loadSeq = React.useRef(0)
+      // Whether the tab is on screen. A hidden tab has no reason to ask the Host
+      // for a pool state nobody is looking at, so the poll skips it entirely.
+      const visibleRef = React.useRef(true)
+      visibleRef.current = visible !== false
+      // The shape of the last reply, kept so the poll can tell "nothing changed"
+      // from "there is something new". A drained pool whose batch has not moved
+      // produces the same reply every time, and re-rendering the board for it
+      // wastes a render on every tick.
+      const lastShapeRef = React.useRef(null)
+      /**
+       * Store a reply, unless it would render exactly what is already shown.
+       *
+       * The reply is a new object every time, so `setPool` alone re-renders the
+       * board on every tick even when nothing moved. Comparing the shape first
+       * keeps the render for the moments it is needed.
+       */
+      const applyPool = React.useCallback((value) => {
+        const shape = poolShape(value)
+        if (shape !== null && shape === lastShapeRef.current) return false
+        lastShapeRef.current = shape
+        setPool(value)
+        return true
+      }, [])
       // One clock reading per render: the stale gap and the durations below all
       // measure against the same instant, so they cannot disagree by a second.
       const nowMs = Date.now()
@@ -1435,7 +1489,7 @@ window.__ModuleLoader__.load({
               setLoading(false)
               return
             }
-            setPool(value)
+            applyPool(value)
             // Follow into a batch's detail even when the pool is drained: with
             // nothing running, currentBatchId is 0 and the board would otherwise
             // stop at the overview and show no rows.
@@ -1457,7 +1511,7 @@ window.__ModuleLoader__.load({
                 remote.poolStatus({ batchId: desired }).then((r2) => {
                   if (seq !== loadSeq.current) return
                   const d = unwrap(r2, 'batch detail was refused')
-                  if (d !== null && typeof d === 'object' && d.status === 'ok') setPool(d)
+                  if (d !== null && typeof d === 'object' && d.status === 'ok') applyPool(d)
                   setLoading(false)
                 }).catch((err) => {
                   if (seq === loadSeq.current) { setError(messageOf(err)); setLoading(false) }
@@ -1514,7 +1568,23 @@ window.__ModuleLoader__.load({
 
       React.useEffect(() => {
         load()
-        const id = setInterval(() => { if (autoRef.current) refresh() }, 30000)
+        const id = setInterval(() => {
+          if (!autoRef.current) return
+          // A hidden tab has nobody looking at it, so do not even ask the Host.
+          if (!visibleRef.current) return
+          // A drained pool whose batch has not moved produces the same board
+          // every time. Asking again would re-render it for nothing. The check
+          // is on the last reply we rendered, so a task that appears elsewhere
+          // still wakes the board up on the next tick: the counts change and the
+          // shape no longer matches.
+          const last = lastShapeRef.current
+          if (last !== null) {
+            const drained = last.includes('PENDING:0') && last.includes('DISPATCHED:0')
+            const sameBatch = last.startsWith(`b:${Number(poolRef.current?.currentBatchId) || 0}|l:${Number(poolRef.current?.latestBatchId) || 0}`)
+            if (drained && sameBatch) return
+          }
+          refresh()
+        }, 30000)
         return () => clearInterval(id)
       }, [load, refresh])
 
@@ -2192,8 +2262,13 @@ window.__ModuleLoader__.load({
         ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
           name: 'sidebar.right.pane.tab',
           key: POOL_TAB_ID,
-        }, function PoolTabBody() {
-          return h(PoolDashboard, { ctx, t })
+        }, function PoolTabBody(props) {
+          // The framework injects useTabInfo into the slot component; `tab.visible`
+          // says whether this tab is the one on screen. The board polls itself
+          // every 30 seconds, and there is no point asking the Host for a pool
+          // state nobody is looking at.
+          const { tab } = props.useTabInfo()
+          return h(PoolDashboard, { ctx, t, visible: tab.visible })
         })), 'media-runninghub: pool tab body')
         ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
           name: 'sidebar.right.pane.tab.title',

@@ -437,7 +437,11 @@ function startWatcherJob(ctx, site, agent) {
   // no id. That loop still needs the singleton guard: without it every replay
   // click would start another poller over the same ledger.
   if (detachedWatcher) return
-  const jobId = startWatcher(ctx, site, poolConfig, agent)
+  // The detached loop has to release the guard when it ends. Nothing else would:
+  // it registers no job, so the registry never reports it as settled.
+  const jobId = startWatcher(ctx, site, poolConfig, agent, () => {
+    detachedWatcher = false
+  })
   if (jobId === undefined) {
     detachedWatcher = true
     return
