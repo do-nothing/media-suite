@@ -53,6 +53,18 @@ function siteHost(site) {
   return SITES[site] ?? SITES.cn
 }
 
+/**
+ * How long one request may hang before it is abandoned.
+ *
+ * The watcher polls in a loop and every poll is awaited: a request that never
+ * settles stops the loop, so no row is rewritten and the board reports the pool
+ * as stalled. RunningHub occasionally accepts a connection and then says
+ * nothing, so a request needs a deadline of its own rather than trusting the
+ * socket to fail. Keeping it under the poll interval means a hung request costs
+ * one tick, not the batch.
+ */
+const REQUEST_TIMEOUT_MS = 25000
+
 async function postJson(url, body, apiKey) {
   let response
   try {
@@ -63,6 +75,7 @@ async function postJson(url, body, apiKey) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
   } catch (error) {
     return { networkError: error }

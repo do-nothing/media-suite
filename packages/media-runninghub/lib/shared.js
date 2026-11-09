@@ -83,6 +83,7 @@ export async function resolveSiteForKey(apiKey) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ apikey: apiKey }),
+      signal: AbortSignal.timeout(30000),
     })
   } catch {
     return { ok: false, code: 'UNREACHABLE', message: '无法连接 RunningHub。' }
