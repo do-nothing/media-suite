@@ -90,3 +90,47 @@ test('a complete payload has no missing list', async () => {
   assert.equal(result.missing, undefined)
   assert.ok(Array.isArray(result.payload.nodeInfoList))
 })
+
+// --- shared media slots ----------------------------------------------------
+
+test('several params can feed one JSON media slot', async () => {
+  const { buildPayload, TaskType } = await import('../lib/pool/types.js')
+  const t = new TaskType({
+    typeId: 'probe',
+    workflowId: '1',
+    params: [
+      { name: 'image', type: 'image', nodeId: '339', fieldName: 'media_state', mergeAs: 'images', required: true },
+      { name: 'image2', type: 'image', nodeId: '339', fieldName: 'media_state', mergeAs: 'images' },
+      { name: 'audio', type: 'audio', nodeId: '339', fieldName: 'media_state', mergeAs: 'audios', required: true },
+      { name: 'prompt', type: 'text', nodeId: '340', fieldName: 'prompt', required: true },
+    ],
+  })
+  const resolveFile = async (p, v) => ({ rhFileName: `${p.name}-${v}`, input: { param: p.name, localPath: v } })
+  const r = await buildPayload(t, { image: 'a.png', image2: 'b.png', audio: 'c.mp3', prompt: 'p' }, resolveFile)
+  assert.equal(r.ok, true)
+
+  const media = r.payload.nodeInfoList.find((n) => n.fieldName === 'media_state')
+  assert.ok(media, 'one media_state entry')
+  assert.equal(r.payload.nodeInfoList.filter((n) => n.fieldName === 'media_state').length, 1, 'merged into one entry')
+  const state = JSON.parse(media.fieldValue)
+  assert.deepEqual(state.images, [{ filename: 'image-a.png' }, { filename: 'image2-b.png' }])
+  assert.deepEqual(state.audios, [{ filename: 'audio-c.mp3' }])
+  assert.deepEqual(state.videos, [], 'every array is present even when empty')
+})
+
+test('a blank optional media slot contributes nothing to the JSON', async () => {
+  const { buildPayload, TaskType } = await import('../lib/pool/types.js')
+  const t = new TaskType({
+    typeId: 'probe',
+    workflowId: '1',
+    params: [
+      { name: 'image', type: 'image', nodeId: '339', fieldName: 'media_state', mergeAs: 'images', required: true },
+      { name: 'image2', type: 'image', nodeId: '339', fieldName: 'media_state', mergeAs: 'images' },
+    ],
+  })
+  const resolveFile = async (p, v) => ({ rhFileName: `${p.name}-${v}`, input: { param: p.name, localPath: v } })
+  const r = await buildPayload(t, { image: 'a.png', image2: '' }, resolveFile)
+  assert.equal(r.ok, true)
+  const state = JSON.parse(r.payload.nodeInfoList.find((n) => n.fieldName === 'media_state').fieldValue)
+  assert.deepEqual(state.images, [{ filename: 'image-a.png' }], 'the empty marker is not a file')
+})

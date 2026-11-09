@@ -29,6 +29,12 @@ export class DefinitionError extends Error {}
 /**
  * One parameter of a task type: the whitelist entry a caller may fill, mapped
  * to the workflow node slot it feeds.
+ *
+ * A slot normally takes one value. Some workflows instead take a single JSON
+ * field describing every media file at once — `MiniMaxH3EasyMediaLoader` reads
+ * `media_state` as `{"images":[...],"audios":[...],"videos":[]}` — so several
+ * params point at the same slot and declare which array they feed through
+ * `mergeAs`. The payload builder groups them and writes one JSON object.
  */
 export class Param {
   constructor(d) {
@@ -45,6 +51,12 @@ export class Param {
     this.default = d.default
     this.accept = Array.isArray(d.accept) ? d.accept : []
     this.enum = Array.isArray(d.enum) ? d.enum : []
+    // Which array of a shared media slot this param feeds, when the workflow
+    // takes one JSON field for every file.
+    this.mergeAs = d.mergeAs === undefined ? undefined : String(d.mergeAs)
+    if (this.mergeAs !== undefined && !FILE_TYPES.has(this.type)) {
+      throw new DefinitionError(`param '${this.name}' sets mergeAs but is not a file type`)
+    }
   }
 }
 
@@ -166,6 +178,9 @@ export async function buildPayload(t, params, resolveFile) {
   const nodes = []
   const inputs = []
   const missing = []
+  // Shared media slots, keyed by `nodeId.fieldName`, collected as the params
+  // are walked and written once at the end.
+  const merged = new Map()
   for (const p of t.params) {
     let value
     if (Object.hasOwn(params, p.name)) value = params[p.name]
@@ -214,9 +229,35 @@ export async function buildPayload(t, params, resolveFile) {
     } else {
       fieldValue = coerceScalar(p, value)
     }
+
+    // A slot shared by several params is collected rather than written once:
+    // the workflow reads one JSON field describing every file. The empty marker
+    // never belongs in that JSON, so a blank optional slot contributes nothing.
+    if (p.mergeAs !== undefined) {
+      if (typeof fieldValue === 'string' && EMPTY_MARKERS.has(fieldValue)) continue
+      const slot = `${p.nodeId}.${p.fieldName}`
+      const bucket = merged.get(slot) ?? { nodeId: p.nodeId, fieldName: p.fieldName, arrays: new Map() }
+      const list = bucket.arrays.get(p.mergeAs) ?? []
+      list.push({ filename: fieldValue })
+      bucket.arrays.set(p.mergeAs, list)
+      merged.set(slot, bucket)
+      continue
+    }
+
     nodes.push({ nodeId: p.nodeId, fieldName: p.fieldName, fieldValue })
   }
   if (missing.length > 0) return { ok: false, missing }
+  // One node entry per shared slot, carrying every array the workflow expects.
+  // A slot with no files at all still gets empty arrays: the loader reads the
+  // key, and a missing one is not the same as an empty list.
+  for (const bucket of merged.values()) {
+    const value = {}
+    for (const [key, list] of bucket.arrays) value[key] = list
+    for (const key of ['images', 'audios', 'videos']) {
+      if (value[key] === undefined) value[key] = []
+    }
+    nodes.push({ nodeId: bucket.nodeId, fieldName: bucket.fieldName, fieldValue: JSON.stringify(value) })
+  }
   nodes.push(...t.fixedOverrides)
   return { ok: true, payload: { workflowId: t.workflowId, instanceType: t.instanceType, nodeInfoList: nodes }, inputs }
 }
