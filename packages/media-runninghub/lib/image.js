@@ -119,8 +119,11 @@ async function poll(taskId, apiKey, site, signal) {
 function costOf(data) {
   const usage = data?.usage ?? {}
   const cost = {}
-  const coins = usage.consumeCoins ?? usage.coins
-  if (coins !== undefined && coins !== null && String(coins) !== '0') cost.coins = String(coins)
+  // A task is settled in points or in cash, never both. The platform reports
+  // the points it charged under `chargedPoint`; the RH coin it used to report
+  // under `consumeCoins` is gone.
+  const points = usage.chargedPoint
+  if (points !== undefined && points !== null && String(points) !== '0') cost.points = String(points)
   const money = usage.consumeMoney ?? usage.cost
   if (money !== undefined && money !== null && String(money) !== '0') cost.cost = String(money)
   const third = usage.thirdPartyConsumeMoney
@@ -217,7 +220,7 @@ function createRunningHubImageTool(ctx) {
           bytes: { type: 'integer' },
           mode: { type: 'string' },
           requestId: { type: 'string' },
-          coins: { type: 'string' },
+          points: { type: 'string' },
           cost: { type: 'string' },
           thirdParty: { type: 'string' },
           durationSeconds: { type: 'number' },
@@ -227,7 +230,7 @@ function createRunningHubImageTool(ctx) {
       },
       render: (_args, value) => {
         const fees = []
-        if (value.coins !== undefined) fees.push(`${value.coins} RH 币`)
+        if (value.points !== undefined) fees.push(`${value.points} 积分`)
         if (value.cost !== undefined) fees.push(`现金 ${value.cost}`)
         if (value.thirdParty !== undefined) fees.push(`第三方 ${value.thirdParty}`)
         const cost = fees.length > 0 ? `，花费 ${fees.join('，')}` : ''

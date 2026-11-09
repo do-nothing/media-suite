@@ -188,7 +188,10 @@ export async function queryTask(apiKey, taskId, site) {
       costs: {
         money: asNumber(usage.consumeMoney),
         thirdParty: asNumber(usage.thirdPartyConsumeMoney),
-        coins: asNumber(usage.consumeCoins) === null ? null : Math.round(usage.consumeCoins),
+        // A task is settled in points or in cash, never both. The platform
+        // reports the points it charged under `chargedPoint`; the RH coin it
+        // used to report under `consumeCoins` is gone.
+        points: asNumber(usage.chargedPoint),
         timeSeconds: asNumber(usage.taskCostTime) === null ? null : Math.round(usage.taskCostTime),
       },
     }

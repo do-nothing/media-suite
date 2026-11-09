@@ -316,7 +316,7 @@ window.__ModuleLoader__.load({
         acctUnknown: '未知状态',
         acctBalance: '余额',
         acctTasks: '{count} 个任务运行中',
-        acctCoins: '{count} RH 币',
+        acctPoints: '{count} 积分',
         acctApiType: 'API 类型',
         acctCheckedAt: '检查时间 {time}',
         acctInvalidDetail: 'RunningHub 拒绝了该 Key：{message}',
@@ -447,7 +447,7 @@ window.__ModuleLoader__.load({
         acctUnknown: 'Unknown status',
         acctBalance: 'Balance',
         acctTasks: '{count} running',
-        acctCoins: '{count} RH coins',
+        acctPoints: '{count} points',
         acctApiType: 'API type',
         acctCheckedAt: 'Checked {time}',
         acctInvalidDetail: 'RunningHub rejected this key: {message}',
@@ -1047,10 +1047,10 @@ window.__ModuleLoader__.load({
     function formatCost(cost) {
       if (cost === null || typeof cost !== 'object') return null
       const parts = []
-      const coins = Number(cost.coins)
+      const points = Number(cost.points)
       const money = Number(cost.money)
       const third = Number(cost.thirdParty)
-      if (Number.isFinite(coins) && coins !== 0) parts.push(`${coins} RH`)
+      if (Number.isFinite(points) && points !== 0) parts.push(`${points} 积分`)
       if (Number.isFinite(money) && money !== 0) parts.push(formatMoney(String(money), 'CNY'))
       if (Number.isFinite(third) && third !== 0) parts.push(`¥${third.toFixed(2)}`)
       return parts.length > 0 ? parts.join(' · ') : null
@@ -1077,8 +1077,8 @@ window.__ModuleLoader__.load({
         ? formatMoney(status.balance, status.currency)
         : null
       const meta = []
-      if (status !== null && typeof status.coins === 'string') {
-        meta.push(t('acctCoins', { count: formatCount(status.coins) }))
+      if (status !== null && typeof status.points === 'string') {
+        meta.push(t('acctPoints', { count: formatCount(status.points) }))
       }
       if (status !== null && typeof status.runningTasks === 'string') {
         meta.push(t('acctTasks', { count: formatCount(status.runningTasks) }))

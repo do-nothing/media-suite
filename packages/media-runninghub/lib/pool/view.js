@@ -269,16 +269,21 @@ export function outstandingOf(counts) {
 /**
  * A short human cost summary from a ledger cost object.
  *
- * @param cost - `{ coins, money, thirdParty }` or null.
+ * RunningHub settles a task either in points or in cash, never both, so the
+ * summary shows whichever one the task was charged in. The RH coin is gone
+ * from the platform; the old `coins` field is not read any more, and records
+ * that still carry it simply show nothing.
+ *
+ * @param cost - `{ points, money, thirdParty }` or null.
  * @returns the summary, or null when every component is zero or absent.
  */
 export function formatCost(cost) {
   if (cost === null || typeof cost !== 'object') return null
   const parts = []
-  const coins = Number(cost.coins)
+  const points = Number(cost.points)
   const money = Number(cost.money)
   const third = Number(cost.thirdParty)
-  if (Number.isFinite(coins) && coins !== 0) parts.push(`${coins} RH`)
+  if (Number.isFinite(points) && points !== 0) parts.push(`${points} 积分`)
   if (Number.isFinite(money) && money !== 0) parts.push(formatMoney(String(money), 'CNY'))
   if (Number.isFinite(third) && third !== 0) parts.push(`¥${third.toFixed(2)}`)
   return parts.length > 0 ? parts.join(' · ') : null

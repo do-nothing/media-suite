@@ -427,24 +427,23 @@ function createStatusTool() {
 
         // Surface fees so a delivery reports the amount. Accept both shapes:
         // batchDetail tasks have parsed `costs`, overview rows carry `cost_json`
-        // as a JSON string. Aggregate coins / cash / third-party across all
-        // successful tasks in this view.
+        // as a JSON string. A task is settled in points or in cash, never both.
         const costs = []
         for (const t of Array.isArray(value.tasks) ? value.tasks : []) {
           if (t === null || typeof t !== 'object') continue
           const raw = t.costs ?? (t.cost_json ? safeJson(t.cost_json) : null)
           if (raw === null || raw === undefined) continue
-          const coins = Number(raw.coins) || 0
+          const points = Number(raw.points) || 0
           const money = Number(raw.money) || 0
           const third = Number(raw.thirdParty) || 0
-          if (coins || money || third) costs.push({ coins, money, third })
+          if (points || money || third) costs.push({ points, money, third })
         }
         if (costs.length > 0) {
           const sum = costs.reduce((a, x) => ({
-            coins: a.coins + x.coins, money: a.money + x.money, third: a.third + x.third,
-          }), { coins: 0, money: 0, third: 0 })
+            points: a.points + x.points, money: a.money + x.money, third: a.third + x.third,
+          }), { points: 0, money: 0, third: 0 })
           const parts = []
-          if (sum.coins) parts.push(`${sum.coins} RH 币`)
+          if (sum.points) parts.push(`${sum.points} 积分`)
           if (sum.money) parts.push(`现金 ${sum.money.toFixed(2)}`)
           if (sum.third) parts.push(`第三方 ${sum.third.toFixed(2)}`)
           if (parts.length > 0) text += `；已计费 ${parts.join('，')}`

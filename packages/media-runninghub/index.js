@@ -200,14 +200,21 @@ async function queryStatus(credentials, ref, context) {
       : {}
     const balance = textOf(data.remainMoney, '0')
     const currency = textOf(data.currency, 'CNY')
+    const points = textOf(data.remainPoint, '0')
     const amount = Number.parseFloat(balance)
+    const pointAmount = Number.parseFloat(points)
+    // A task is settled in points or in cash, so either balance being above
+    // zero means the account can pay. Judging on the cash alone would report
+    // "no balance" for an account that holds thousands of points.
+    const hasBalance = (Number.isFinite(amount) && amount > 0)
+      || (Number.isFinite(pointAmount) && pointAmount > 0)
     return reply(
-      Number.isFinite(amount) && amount > 0 ? 'ready' : 'no_balance',
+      hasBalance ? 'ready' : 'no_balance',
       {
         source,
         balance,
         currency,
-        coins: textOf(data.remainCoins, '0'),
+        points,
         runningTasks: textOf(data.currentTaskCounts, '0'),
         ...(textOf(data.apiType, '').length === 0 ? {} : { apiType: textOf(data.apiType, '') }),
         ...(textOf(data.keyType, '').length === 0 ? {} : { keyType: textOf(data.keyType, '') }),

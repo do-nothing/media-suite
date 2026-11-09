@@ -194,12 +194,19 @@ test('taskDuration is a dash without a start time', () => {
 })
 
 test('formatCost joins only the non-zero components', () => {
-  assert.equal(formatCost({ coins: 25, money: 0, thirdParty: 0 }), '25 RH')
-  assert.equal(formatCost({ coins: 0, money: 0.1, thirdParty: 0 }), '¥0.10')
-  assert.equal(formatCost({ coins: 0, money: 0, thirdParty: 0.19 }), '¥0.19')
-  assert.equal(formatCost({ coins: 25, money: 0.1, thirdParty: 0.19 }), '25 RH · ¥0.10 · ¥0.19')
-  assert.equal(formatCost({ coins: 0, money: 0, thirdParty: 0 }), null)
+  assert.equal(formatCost({ points: 25, money: 0, thirdParty: 0 }), '25 积分')
+  assert.equal(formatCost({ points: 0, money: 0.1, thirdParty: 0 }), '¥0.10')
+  assert.equal(formatCost({ points: 0, money: 0, thirdParty: 0.19 }), '¥0.19')
+  assert.equal(formatCost({ points: 25, money: 0.1, thirdParty: 0.19 }), '25 积分 · ¥0.10 · ¥0.19')
+  assert.equal(formatCost({ points: 0, money: 0, thirdParty: 0 }), null)
   assert.equal(formatCost(null), null)
+})
+
+test('formatCost ignores the retired RH coin', () => {
+  // The platform no longer charges in RH coins. A record that still carries
+  // the old field shows no fee rather than a currency that no longer exists.
+  assert.equal(formatCost({ coins: 25, money: 0, thirdParty: 0 }), null)
+  assert.equal(formatCost({ coins: 25, money: 0.1, thirdParty: 0 }), '¥0.10')
 })
 
 test('formatMoney keeps an unknown currency code', () => {
