@@ -19,12 +19,14 @@ import { startWatcher, cancelWatcher } from './watcher.js'
 
 // The single global watcher's identity, or null when the pool has drained.
 // Whatever session started the watcher owns it; later submitters reuse it.
+// `{ jobId, ownerId, startedAt }`.
 let activeWatcher = null
 
-// True while a watcher started without an owner agent (a Remote-triggered
-// replay) is polling. It has no registry job id and never settles, so this flag
-// is the only guard against starting a second poller over the same ledger.
-let detachedWatcher = false
+// A watcher started without an owner agent (a Remote-triggered replay) is
+// polling. It has no registry job id and never settles, so this is the only
+// guard against starting a second poller over the same ledger.
+// `{ startedAt }` while a detached loop runs, null otherwise.
+let detachedWatcher = null
 
 /** Parse `cost_json` text from an overview row; null when not valid JSON. */
 function safeJson(text) {
@@ -274,11 +276,11 @@ function createSubmitTool(ctx) {
 
       const { ids, batchId } = await store.enqueue(resolved, exec.agent?.id)
 
-      let watcherAction = 'reused'
-      if (activeWatcher === null) {
-        startWatcherJob(ctx, site, exec.agent)
-        watcherAction = 'started'
-      }
+      // The guard may be holding a watcher that died without releasing it, so
+      // the decision to start one is made inside startWatcherJob, which checks
+      // the ledger before trusting the guard. Its answer says whether a loop is
+      // running now, which is what the caller reports.
+      const watcherAction = await startWatcherJob(ctx, site, exec.agent) ? 'started' : 'reused'
 
       // Report where the pool stands, so a caller that queued more than the
       // concurrency ceiling allows can tell the difference between "sent" and
@@ -470,27 +472,86 @@ function createStatusTool() {
   }
 }
 
-/** Start the single global watcher owned by the given agent. */
-function startWatcherJob(ctx, site, agent) {
-  if (activeWatcher !== null) return
+/**
+ * How long a guard may sit without the pool moving before it is presumed dead.
+ *
+ * The guards below are released by events that do not always arrive: the
+ * registry's `settled` event never comes if the owning session is gone, and a
+ * detached loop's own callback never comes if the process dropped the loop
+ * without running it. A guard that is never released is worse than no guard —
+ * it silently stops every later batch from being polled, and the only visible
+ * symptom is a board whose tasks never advance.
+ */
+const WATCHER_STALE_MS = 5 * 60 * 1000
+
+/** Whether a guard is old enough to be presumed dead. */
+function guardIsStale(guard) {
+  if (guard === null) return false
+  const started = Number(guard.startedAt)
+  return Number.isFinite(started) && Date.now() - started > WATCHER_STALE_MS
+}
+
+/**
+ * Whether a guard is holding a watcher that is no longer making progress.
+ *
+ * A guard is only a claim that a loop exists. The ledger says whether that loop
+ * is still touching the tasks it claims to poll: if something is outstanding and
+ * no row has been updated for longer than the guard's own stale window, the loop
+ * is gone whatever the guard says.
+ *
+ * @returns true when the guard should be discarded.
+ */
+async function guardHoldsDeadWatcher(guard) {
+  if (guard === null) return false
+  let outstanding = []
+  try {
+    outstanding = await store.outstandingTasks()
+  } catch {
+    // Cannot tell: fall back to the age check alone.
+    return guardIsStale(guard)
+  }
+  if (outstanding.length === 0) {
+    // Nothing to poll, so there is nothing for a loop to be doing. A guard left
+    // over from a batch that already drained is stale by definition.
+    return true
+  }
+  const newest = outstanding.reduce((max, row) => Math.max(max, Number(row.updated_at) || 0), 0)
+  if (!Number.isFinite(newest) || newest <= 0) return guardIsStale(guard)
+  const silentFor = Date.now() - newest
+  return silentFor > WATCHER_STALE_MS || guardIsStale(guard)
+}
+
+/**
+ * Start the single global watcher owned by the given agent.
+ *
+ * @returns true when a loop was started, false when one was already running.
+ */
+async function startWatcherJob(ctx, site, agent) {
+  if (activeWatcher !== null) {
+    if (!(await guardHoldsDeadWatcher(activeWatcher))) return false
+    activeWatcher = null
+  }
   // A watcher started from a Remote call (the board's replay button) has no
   // agent to own a registry job, so `startWatcher` runs it detached and returns
   // no id. That loop still needs the singleton guard: without it every replay
   // click would start another poller over the same ledger.
-  if (detachedWatcher) return
+  if (detachedWatcher !== null) {
+    if (!(await guardHoldsDeadWatcher(detachedWatcher))) return false
+    detachedWatcher = null
+  }
   // The detached loop has to release the guard when it ends. Nothing else would:
   // it registers no job, so the registry never reports it as settled.
   // The settings are read through a getter so a new concurrency ceiling takes
   // effect on the next tick instead of waiting for the plugin to reload.
   const jobId = startWatcher(ctx, site, () => poolConfig(), agent, () => {
-    detachedWatcher = false
+    detachedWatcher = null
   })
   if (jobId === undefined) {
-    detachedWatcher = true
-    return
+    detachedWatcher = { startedAt: Date.now() }
+    return true
   }
   const ownerId = agent?.id
-  activeWatcher = { jobId, ownerId }
+  activeWatcher = { jobId, ownerId, startedAt: Date.now() }
   // The watcher settles via ctx.jobs when the pool drains, which appends
   // `job/settled` to the owning session (the wake). Release the singleton so
   // the next batch can start a fresh watcher.
@@ -498,6 +559,7 @@ function startWatcherJob(ctx, site, agent) {
   jobs?.events.subscribe({ owner: ownerId }, (event) => {
     if (event.type === 'settled' && event.job.id === jobId) activeWatcher = null
   })
+  return true
 }
 
 /**
@@ -512,7 +574,7 @@ function startWatcherJob(ctx, site, agent) {
 export function stopWatcher() {
   cancelWatcher()
   activeWatcher = null
-  detachedWatcher = false
+  detachedWatcher = null
 }
 
 function siteOfConfig(ctx) {
@@ -572,10 +634,17 @@ async function resolveJobsApiKey(ctx) {
   } catch { return undefined }
 }
 
-/** Ensure the single global watcher is running (e.g. after a manual resubmit). */
-export function ensurePoolWatcher(ctx) {
-  if (activeWatcher !== null) return
-  startWatcherJob(ctx, siteOfConfig(ctx), undefined)
+/**
+ * Ensure the single global watcher is running (e.g. after a manual resubmit).
+ *
+ * The guard is not trusted on its own: it may be holding a loop that died
+ * without releasing it, which is exactly the state that leaves later batches
+ * unpolled. startWatcherJob checks the ledger first.
+ *
+ * @returns true when a loop was started.
+ */
+export async function ensurePoolWatcher(ctx) {
+  return startWatcherJob(ctx, siteOfConfig(ctx), undefined)
 }
 
 /**
@@ -601,7 +670,7 @@ export async function resumeOutstanding(ctx) {
     return 0
   }
   if (outstanding.length === 0) return 0
-  ensurePoolWatcher(ctx)
+  await ensurePoolWatcher(ctx)
   ctx.logger?.info?.('media-runninghub: resumed the pool watcher for %d outstanding task(s)', outstanding.length)
   return outstanding.length
 }

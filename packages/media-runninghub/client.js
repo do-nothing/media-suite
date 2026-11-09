@@ -872,8 +872,9 @@ window.__ModuleLoader__.load({
 
     /**
      * Silent gap in seconds for a task that should be advancing but has not
-     * been touched for two poll intervals (and at least a minute), or null when
-     * it looks healthy. This is what `pool.py ls` warns about.
+     * been touched recently, or null when it looks healthy. Every poll rewrites
+     * the row — including the ones that find the task still running — so
+     * silence means no poll is reaching it, which is what the warning is for.
      */
     function staleSeconds(task, pollIntervalSeconds, now) {
       const status = task?.status
@@ -887,7 +888,11 @@ window.__ModuleLoader__.load({
           ? (Number.isFinite(submitted) && submitted > 0 ? submitted : created)
           : NaN
       if (!Number.isFinite(anchor) || anchor <= 0) return null
-      const threshold = Math.max(60, (Number(pollIntervalSeconds) || 30) * 2)
+      // Two intervals is enough to notice a watcher that stopped, but a single
+      // missed poll — a slow query, a busy tick — must not raise the alarm. The
+      // floor keeps the warning meaningful at short poll intervals.
+      const interval = Number(pollIntervalSeconds) || 30
+      const threshold = Math.max(180, interval * 3)
       const gap = Math.floor(((Number(now) || Date.now()) - anchor) / 1000)
       return gap > threshold ? gap : null
     }

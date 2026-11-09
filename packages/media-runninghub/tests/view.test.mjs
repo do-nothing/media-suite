@@ -217,23 +217,33 @@ test('formatMoney keeps an unknown currency code', () => {
 
 // --- stale detection -------------------------------------------------------
 
-test('a dispatched task silent for two intervals is stale', () => {
+test('a dispatched task silent for three intervals is stale', () => {
   const now = 1_000_000_000
-  // pollIntervalSeconds 30 → threshold 60s.
-  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 61_000 }, 30, now), 61)
-  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 30_000 }, 30, now), null)
+  // pollIntervalSeconds 30 → threshold 90s, raised to the 180s floor.
+  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 181_000 }, 30, now), 181)
+  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 120_000 }, 30, now), null)
 })
 
-test('the stale threshold never drops below a minute', () => {
+test('one missed poll is not enough to warn', () => {
   const now = 1_000_000_000
-  // pollIntervalSeconds 5 → 10s, raised to the 60s floor.
-  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 20_000 }, 5, now), null)
-  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 61_000 }, 5, now), 61)
+  // A long-running task is re-polled every interval and its row is rewritten
+  // each time. Missing one poll — a slow query, a busy tick — must stay quiet.
+  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 60_000 }, 30, now), null)
+  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 120_000 }, 30, now), null)
+})
+
+test('the stale threshold never drops below three minutes', () => {
+  const now = 1_000_000_000
+  // pollIntervalSeconds 5 → 15s, raised to the 180s floor.
+  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 120_000 }, 5, now), null)
+  assert.equal(staleSeconds({ status: 'DISPATCHED', updated_at: now - 181_000 }, 5, now), 181)
 })
 
 test('a pending task measures silence from its creation', () => {
   const now = 1_000_000_000
-  assert.equal(staleSeconds({ status: 'PENDING', created_at: now - 120_000 }, 30, now), 120)
+  // Same 180s floor applies to a row waiting for a slot.
+  assert.equal(staleSeconds({ status: 'PENDING', created_at: now - 200_000 }, 30, now), 200)
+  assert.equal(staleSeconds({ status: 'PENDING', created_at: now - 120_000 }, 30, now), null)
 })
 
 test('terminal and undated tasks are never stale', () => {

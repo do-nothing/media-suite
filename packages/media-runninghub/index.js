@@ -439,7 +439,7 @@ function registerController(ctx) {
       // and `startWatcher` falls back to a detached loop; anything else that
       // throws is reported to the log instead.
       try {
-        ensurePoolWatcher(ctx)
+        await ensurePoolWatcher(ctx)
       } catch (error) {
         ctx.logger?.warn?.('media-runninghub: pool watcher did not start: %o', error)
       }
@@ -455,7 +455,7 @@ function registerController(ctx) {
      */
     async poolResumeWatcher() {
       try {
-        ensurePoolWatcher(ctx)
+        await ensurePoolWatcher(ctx)
       } catch (error) {
         return { status: 'error', message: `watcher 未能启动：${error?.message ?? error}` }
       }

@@ -359,10 +359,14 @@ export function formatDuration(seconds) {
 /**
  * A task that should be advancing but has not been touched recently.
  *
- * A healthy watcher re-polls every `pollIntervalSeconds` and refreshes
- * `updated_at`; silence for two intervals (and at least a minute) means the
- * detached watcher is likely gone while RunningHub may already be done. This is
- * the warning `pool.py ls` prints.
+ * A healthy watcher re-polls every `pollIntervalSeconds`, and every poll writes
+ * the row — including the ones that find the task still running. Silence means
+ * no poll is reaching it, which is what this warning is for.
+ *
+ * The anchor is the row's `updated_at`, which every poll refreshes. It is a
+ * coarse signal: a task that RunningHub reports as running for twenty minutes
+ * gets its row rewritten every interval, so it stays quiet here. Only a row
+ * nobody is touching goes silent.
  *
  * @param task - a ledger row.
  * @param pollIntervalSeconds - the configured poll cadence.
@@ -382,7 +386,12 @@ export function staleSeconds(task, pollIntervalSeconds, now = Date.now()) {
       ? (Number.isFinite(submitted) && submitted > 0 ? submitted : created)
       : NaN
   if (!Number.isFinite(anchor) || anchor <= 0) return null
-  const threshold = Math.max(60, (Number(pollIntervalSeconds) || 30) * 2)
+  // Two intervals is enough to notice a watcher that stopped, but a single
+  // missed poll — a slow query, a busy tick — must not raise the alarm. The
+  // floor keeps the warning meaningful at short poll intervals, where two
+  // intervals would be a handful of seconds.
+  const interval = Number(pollIntervalSeconds) || 30
+  const threshold = Math.max(180, interval * 3)
   const gap = Math.floor((Number(now) - anchor) / 1000)
   return gap > threshold ? gap : null
 }
