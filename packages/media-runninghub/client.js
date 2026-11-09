@@ -1487,36 +1487,39 @@ window.__ModuleLoader__.load({
               setLoading(false)
               return
             }
-            applyPool(value)
-            // Follow into a batch's detail even when the pool is drained: with
-            // nothing running, currentBatchId is 0 and the board would otherwise
-            // stop at the overview and show no rows.
+            // The reply without a batch id is the overview: the newest tasks
+            // across every batch. It is only a stepping stone to the batch the
+            // board actually shows — rendering it first painted rows from other
+            // batches for the length of one round trip, which read as the board
+            // flashing a crowd of tasks before settling on one. Its data is
+            // never what the board ends up showing, so it is not stored.
+            //
+            // The anchor it carries is still needed: with the pool drained,
+            // currentBatchId is 0 and only latestBatchId says which batch to
+            // open.
             const anchor = anchorBatchOf(value)
             const desired = target > 0 ? target : anchor
-            if (desired > 0) {
-              // The overview reply carries the newest tasks across ALL batches,
-              // enriched with outputs so a drained board still shows costs.
-              // `isBatchDetail` distinguishes the two forms by batch membership.
-              const isDetail = isBatchDetail(value.tasks, desired)
-              if (!isDetail) {
-                // Do not setViewBatch here. Pinning the batch from inside load
-                // re-renders the component, which rebuilds `refresh`, which
-                // re-runs the effect, which calls load again — and that bump of
-                // loadSeq makes this very reply look stale, so the detail reply
-                // is dropped and the board keeps the overview rows. The shown
-                // batch already derives from the anchor when nothing is pinned,
-                // so the detail lands correctly without touching state.
-                remote.poolStatus({ batchId: desired }).then((r2) => {
-                  if (seq !== loadSeq.current) return
-                  const d = unwrap(r2, 'batch detail was refused')
-                  if (d !== null && typeof d === 'object' && d.status === 'ok') applyPool(d)
-                  setLoading(false)
-                }).catch((err) => {
-                  if (seq === loadSeq.current) { setError(messageOf(err)); setLoading(false) }
-                })
-                return
-              }
+            if (desired > 0 && !isBatchDetail(value.tasks, desired)) {
+              // Do not setViewBatch here. Pinning the batch from inside load
+              // re-renders the component, which rebuilds `refresh`, which
+              // re-runs the effect, which calls load again — and that bump of
+              // loadSeq makes this very reply look stale, so the detail reply
+              // is dropped and the board keeps the overview rows. The shown
+              // batch already derives from the anchor when nothing is pinned,
+              // so the detail lands correctly without touching state.
+              remote.poolStatus({ batchId: desired }).then((r2) => {
+                if (seq !== loadSeq.current) return
+                const d = unwrap(r2, 'batch detail was refused')
+                if (d !== null && typeof d === 'object' && d.status === 'ok') applyPool(d)
+                setLoading(false)
+              }).catch((err) => {
+                if (seq === loadSeq.current) { setError(messageOf(err)); setLoading(false) }
+              })
+              return
             }
+            // Either the reply already is the batch the board shows, or there
+            // is no batch to follow into because the ledger is empty.
+            applyPool(value)
             setLoading(false)
           })
           .catch((err) => {
