@@ -44,7 +44,16 @@ async function tick(apiKey, site, job, cfg) {
   // Poll every dispatched task.
   for (const task of tasks.filter((t) => t.status === 'DISPATCHED' && t.task_id)) {
     const result = await client.queryTask(apiKey, task.task_id, site)
-    if (!result.ok) continue // network error: retry on the next tick
+    if (!result.ok) {
+      // A failed poll still touched this row: the watcher tried, so the row is
+      // not being ignored. Recording the attempt keeps `updated_at` meaning
+      // "someone is still working on this" rather than "this made progress",
+      // and the board's stall warning reads the former. Without it a run of
+      // timeouts — a slow network, a slow provider — looks exactly like a dead
+      // watcher, which is the one thing the warning must not report falsely.
+      await store.touchTask(task.id)
+      continue // retry on the next tick
+    }
 
     if (result.terminal) {
       await store.setTerminal(task.id, result)

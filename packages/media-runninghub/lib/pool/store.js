@@ -206,6 +206,19 @@ export async function setRhStatus(rowId, rhStatus) {
     .run(rhStatus ?? null, now(), rowId)
 }
 
+/**
+ * Mark that a task was just looked at, without changing anything about it.
+ *
+ * The board's stall warning asks whether anything is still touching a row, not
+ * whether the task is advancing. A poll that failed still proves the watcher is
+ * alive, so it records the attempt — otherwise a run of timeouts reads as a
+ * dead watcher.
+ */
+export async function touchTask(rowId) {
+  const db = await open()
+  db.prepare('UPDATE tasks SET updated_at = ? WHERE id = ?').run(now(), rowId)
+}
+
 /** Record one poll result for a task row. */
 export async function setPollResult(rowId, { status, rhStatus, errorCode, errorMessage, costs }) {
   const db = await open()

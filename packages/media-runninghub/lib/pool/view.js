@@ -212,7 +212,26 @@ export function poolShape(reply) {
   // The task ids matter as much as the counts: a task can finish and another
   // start within the same tick, leaving the counts unchanged but the rows
   // different.
-  for (const task of tasks) parts.push(`i${Number(task?.id) || 0}:${String(task?.status ?? '')}`)
+  //
+  // The cost and the outputs are part of the shape for the same reason. A task
+  // reaches SUCCESS the moment the platform reports it, but the fee and the
+  // saved file arrive later — the watcher writes the terminal status first and
+  // downloads the outputs after. Comparing only id and status meant that second
+  // write never reached the board: the reply differed, the shape did not, and
+  // the row sat there showing "success" with no fee and no path until the batch
+  // was switched or the page reloaded.
+  for (const task of tasks) {
+    const row = `i${Number(task?.id) || 0}:${String(task?.status ?? '')}`
+    const cost = task?.costs ?? (typeof task?.cost_json === 'string' ? safeJson(task.cost_json) : null)
+    const fee = cost === null || typeof cost !== 'object'
+      ? ''
+      : `:${Number(cost.points) || 0}/${Number(cost.money) || 0}/${Number(cost.thirdParty) || 0}`
+    const outputs = Array.isArray(task?.outputs) ? task.outputs : []
+    const files = outputs.length === 0
+      ? ''
+      : `:${outputs.map((o) => String(o?.path ?? '')).join(',')}`
+    parts.push(row + fee + files)
+  }
   return parts.join('|')
 }
 

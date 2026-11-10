@@ -502,3 +502,19 @@ test('the dispatch budget refuses an unusable ceiling', async () => {
     assert.equal(b.dispatch, 2, `dispatch for ${String(bad)}`)
   }
 })
+
+test('the reply shape notices a fee arriving after the status', async () => {
+  const { poolShape } = await import('../lib/pool/view.js')
+  // A task reaches SUCCESS first; the fee is written a moment later. The board
+  // must re-render for the second reply, so the shape has to differ.
+  const done = { status: 'ok', currentBatchId: 3, latestBatchId: 3, counts: { total: 1, SUCCESS: 1 }, tasks: [{ id: 7, status: 'SUCCESS', cost_json: null }] }
+  const paid = { status: 'ok', currentBatchId: 3, latestBatchId: 3, counts: { total: 1, SUCCESS: 1 }, tasks: [{ id: 7, status: 'SUCCESS', cost_json: '{"points":20.92,"money":0,"thirdParty":0}' }] }
+  assert.notEqual(poolShape(done), poolShape(paid))
+})
+
+test('the reply shape notices outputs arriving after the status', async () => {
+  const { poolShape } = await import('../lib/pool/view.js')
+  const done = { status: 'ok', currentBatchId: 3, latestBatchId: 3, counts: { total: 1, SUCCESS: 1 }, tasks: [{ id: 7, status: 'SUCCESS', outputs: [] }] }
+  const saved = { status: 'ok', currentBatchId: 3, latestBatchId: 3, counts: { total: 1, SUCCESS: 1 }, tasks: [{ id: 7, status: 'SUCCESS', outputs: [{ path: '/out/a.mp4' }] }] }
+  assert.notEqual(poolShape(done), poolShape(saved))
+})

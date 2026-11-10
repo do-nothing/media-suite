@@ -67,6 +67,9 @@ test('poolShape matches', () => {
     undefined,
     { status: 'ok', currentBatchId: 3, latestBatchId: 12, counts: { total: 2, PENDING: 0, DISPATCHED: 1, SUCCESS: 1 }, tasks: [{ id: 10, status: 'DISPATCHED' }, { id: 9, status: 'SUCCESS' }] },
     { status: 'ok', currentBatchId: 0, latestBatchId: 12, counts: { total: 0 }, tasks: [] },
+    // A finished task whose fee and outputs arrived on a later reply.
+    { status: 'ok', currentBatchId: 3, latestBatchId: 3, counts: { total: 1, SUCCESS: 1 }, tasks: [{ id: 7, status: 'SUCCESS', cost_json: '{"points":20.92,"money":0,"thirdParty":0}', outputs: [{ path: '/out/a.mp4' }] }] },
+    { status: 'ok', currentBatchId: 3, latestBatchId: 3, counts: { total: 1, SUCCESS: 1 }, tasks: [{ id: 7, status: 'SUCCESS', costs: { points: 20.92, money: 0, thirdParty: 0 }, outputs: [{ path: '/out/a.mp4' }] }] },
   ]
   for (const reply of replies) {
     assert.equal(client.poolShape(reply), view.poolShape(reply), JSON.stringify(reply))
