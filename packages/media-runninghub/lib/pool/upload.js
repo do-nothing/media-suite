@@ -19,6 +19,9 @@ const SITES = {
 }
 const UPLOAD_PATH = '/task/openapi/upload'
 
+/** How long one upload may hang before it is abandoned. */
+const UPLOAD_TIMEOUT_MS = 3 * 60 * 1000
+
 export const FILE_TYPES = new Set(['image', 'audio', 'video'])
 
 /** How a file param value should be handled. */
@@ -58,7 +61,9 @@ export async function uploadFile(apiKey, filePath, site) {
 
   let response
   try {
-    response = await fetch(url, { method: 'POST', body: form })
+    // Uploads run inside the submit tool's call, and inside the watcher's tick
+    // for a replay. A transfer that stalls would hold either of them open.
+    response = await fetch(url, { method: 'POST', body: form, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS) })
   } catch (error) {
     return { ok: false, errorType: 'NETWORK', errorMessage: String(error) }
   }
@@ -93,10 +98,22 @@ function guessMime(filePath) {
   return table[ext] ?? 'application/octet-stream'
 }
 
+/**
+ * How long one download may hang before it is abandoned.
+ *
+ * Downloads run inside the watcher's tick, and the tick is awaited: a transfer
+ * that stalls stops the loop, so no row is rewritten and the board reports the
+ * pool as stalled until the transfer finally gives up — which can be minutes.
+ * The limit is generous because a large video is a legitimate slow download,
+ * and it aborts only the transfer, not the task: the row stays outstanding and
+ * the next tick tries again.
+ */
+const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000
+
 /** Download one result URL to a local path. Never throws. */
 export async function downloadFile(url, outputPath) {
   try {
-    const response = await fetch(url)
+    const response = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) })
     if (!response.ok) {
       return { ok: false, errorType: 'NETWORK', errorMessage: `HTTP ${response.status}` }
     }
