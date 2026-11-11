@@ -63,6 +63,13 @@ CREATE TABLE IF NOT EXISTS uploads (
   rh_file    TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS watcher_log (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  at      INTEGER NOT NULL,
+  event   TEXT    NOT NULL,
+  detail  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_watcher_log_at ON watcher_log (at);
 `
 
 let dbPromise = null
@@ -217,6 +224,36 @@ export async function setRhStatus(rowId, rhStatus) {
 export async function touchTask(rowId) {
   const db = await open()
   db.prepare('UPDATE tasks SET updated_at = ? WHERE id = ?').run(now(), rowId)
+}
+
+/**
+ * Append one line to the watcher's own log.
+ *
+ * The watcher's lifecycle is invisible from outside: it runs inside the Host
+ * process, whose stdout a packaged app does not keep. Writing to the ledger
+ * means the question "did the loop exit, or is it running while every poll
+ * fails?" can be answered by a query instead of a reproduction.
+ *
+ * Logging must never break the pool, so a failure here is swallowed.
+ */
+export async function logWatcher(event, detail) {
+  try {
+    const db = await open()
+    db.prepare('INSERT INTO watcher_log (at, event, detail) VALUES (?, ?, ?)')
+      .run(now(), String(event), detail === undefined ? null : String(detail))
+    // Keep the table small: the last few hundred lines are plenty for a
+    // diagnosis and the ledger is shared with the tasks themselves.
+    db.prepare('DELETE FROM watcher_log WHERE id <= (SELECT MAX(id) - 500 FROM watcher_log)').run()
+  } catch {
+    // Never let bookkeeping stop a poll.
+  }
+}
+
+/** The most recent watcher log lines, newest last. */
+export async function watcherLog(limit = 50) {
+  const db = await open()
+  const n = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 500) : 50
+  return db.prepare('SELECT at, event, detail FROM watcher_log ORDER BY id DESC LIMIT ?').all(n).reverse()
 }
 
 /** Record one poll result for a task row. */

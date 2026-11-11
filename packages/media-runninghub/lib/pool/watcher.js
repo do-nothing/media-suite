@@ -182,16 +182,16 @@ export function startWatcher(ctx, site, cfg, agent, onFinish) {
       apiKey = resolved?.value
     } catch { apiKey = undefined }
     if (!apiKey) {
-      console.warn('[runninghub pool] watcher: no API key, not starting')
+      await store.logWatcher('no_key')
       return { status: 'failed', detail: '未配置 RUNNINGHUB_JOBS_API_KEY' }
     }
 
-    // One line at each end of the loop. The board's stall warning can fire for
-    // two very different reasons — the loop exited, or it is running but every
-    // poll is failing — and from the ledger alone they look identical. These
-    // two lines say which one happened, so the next occurrence can be read off
-    // the log instead of inferred.
-    console.log(`[runninghub pool] watcher start (site=${site}, agent=${agent?.id ?? 'detached'})`)
+    // The loop's lifecycle is recorded in the ledger, not on stdout: a packaged
+    // app does not keep the Host's stdout, so a `console.log` here is invisible
+    // exactly when it is needed. The board's stall warning can fire for two very
+    // different reasons — the loop exited, or it is running while every poll
+    // fails — and both leave `updated_at` frozen. These records tell them apart.
+    await store.logWatcher('start', `site=${site} agent=${agent?.id ?? 'detached'}`)
     let ticks = 0
     try {
       while (!cancelled) {
@@ -208,10 +208,10 @@ export function startWatcher(ctx, site, cfg, agent, onFinish) {
           // Transient errors never kill the watcher; log and retry next tick.
           outcome = { drained: false }
           ticks += 1
-          console.warn(`[runninghub pool] tick #${ticks} error:`, error?.message ?? error)
+          await store.logWatcher('tick_error', `#${ticks} ${error?.message ?? error}`)
         }
         if (outcome.drained) {
-          console.log(`[runninghub pool] watcher exit after ${ticks} tick(s): pool drained`)
+          await store.logWatcher('exit', `drained after ${ticks} tick(s)`)
           return { status: 'completed', detail: '池已排空' }
         }
         await new Promise((resolve) => {
@@ -220,12 +220,12 @@ export function startWatcher(ctx, site, cfg, agent, onFinish) {
         })
         wakeSleep = undefined
       }
-      console.log(`[runninghub pool] watcher exit after ${ticks} tick(s): cancelled`)
+      await store.logWatcher('exit', `cancelled after ${ticks} tick(s)`)
       return { status: 'killed', detail: 'cancelled' }
     } catch (error) {
       // Anything thrown outside the per-tick guard ends the loop, and nothing
       // else would report it: the board would simply stop seeing updates.
-      console.error('[runninghub pool] watcher died:', error?.stack ?? error)
+      await store.logWatcher('died', `${error?.message ?? error}`)
       throw error
     }
   })()
