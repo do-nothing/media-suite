@@ -20,6 +20,12 @@ import { downloadFile } from './upload.js'
  * drained after this step.
  */
 async function tick(apiKey, site, job, cfg) {
+  // Mark each step of a tick. The loop's own start/exit records prove it is
+  // stuck inside a tick but not where, and every call here is an `await` that
+  // could be the one not returning. Only the newest step is kept, so the last
+  // row before silence names the culprit without flooding the table.
+  const step = (name) => store.markWatcherStep(name)
+  await step('tick:read')
   const tasks = await store.outstandingTasks()
   if (tasks.length === 0) return { drained: true }
 
@@ -32,6 +38,7 @@ async function tick(apiKey, site, job, cfg) {
     const nodes = JSON.parse(task.node_json ?? '[]')
     const payload = { apiKey, ...request }
     if (Array.isArray(nodes) && nodes.length > 0) payload.nodeInfoList = nodes
+    await step(`dispatch:${task.id}`)
     const result = await client.createWorkflow(apiKey, payload, site)
     if (result.ok) {
       await store.setDispatched(task.id, result.taskId)
@@ -43,6 +50,7 @@ async function tick(apiKey, site, job, cfg) {
 
   // Poll every dispatched task.
   for (const task of tasks.filter((t) => t.status === 'DISPATCHED' && t.task_id)) {
+    await step(`poll:${task.id}`)
     const result = await client.queryTask(apiKey, task.task_id, site)
     if (!result.ok) {
       // A failed poll still touched this row: the watcher tried, so the row is
@@ -58,6 +66,7 @@ async function tick(apiKey, site, job, cfg) {
     if (result.terminal) {
       await store.setTerminal(task.id, result)
       if (result.status === 'SUCCESS') {
+        await step(`download:${task.id}`)
         for (const record of await downloadOutputs(task, result.results)) {
           await store.addOutput(task.id, record)
         }

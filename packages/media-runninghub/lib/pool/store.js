@@ -249,6 +249,25 @@ export async function logWatcher(event, detail) {
   }
 }
 
+/**
+ * Record the step a tick is currently inside, replacing the previous one.
+ *
+ * A tick takes several awaits and the loop's start/exit records only prove it is
+ * stuck somewhere inside one. Writing a row per step would bury that under
+ * thousands of lines, so only the newest step is kept: when the loop goes quiet,
+ * the last row names where it stopped.
+ */
+export async function markWatcherStep(detail) {
+  try {
+    const db = await open()
+    db.prepare('DELETE FROM watcher_log WHERE event = ?').run('step')
+    db.prepare('INSERT INTO watcher_log (at, event, detail) VALUES (?, ?, ?)')
+      .run(now(), 'step', String(detail))
+  } catch {
+    // Never let bookkeeping stop a poll.
+  }
+}
+
 /** The most recent watcher log lines, newest last. */
 export async function watcherLog(limit = 50) {
   const db = await open()
