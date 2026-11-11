@@ -181,30 +181,53 @@ export function startWatcher(ctx, site, cfg, agent, onFinish) {
       const resolved = await ctx.get('credentials')?.resolve('RUNNINGHUB_JOBS_API_KEY')
       apiKey = resolved?.value
     } catch { apiKey = undefined }
-    if (!apiKey) return { status: 'failed', detail: '未配置 RUNNINGHUB_JOBS_API_KEY' }
-
-    while (!cancelled) {
-      // The pool settings can change while the watcher runs — the concurrency
-      // ceiling in particular is meant to take effect without a restart. Read
-      // them fresh every tick rather than holding one snapshot for the life of
-      // the loop.
-      const cfg = readConfig()
-      let outcome
-      try {
-        outcome = await tick(apiKey, site, { updateProgress: (line) => job?.updateProgress?.(line) }, cfg)
-      } catch (error) {
-        // Transient errors never kill the watcher; log and retry next tick.
-        outcome = { drained: false }
-        console.warn('[runninghub pool] tick error:', error?.message ?? error)
-      }
-      if (outcome.drained) return { status: 'completed', detail: '池已排空' }
-      await new Promise((resolve) => {
-        wakeSleep = resolve
-        setTimeout(resolve, Math.max(5, cfg.pollIntervalSeconds) * 1000)
-      })
-      wakeSleep = undefined
+    if (!apiKey) {
+      console.warn('[runninghub pool] watcher: no API key, not starting')
+      return { status: 'failed', detail: '未配置 RUNNINGHUB_JOBS_API_KEY' }
     }
-    return { status: 'killed', detail: 'cancelled' }
+
+    // One line at each end of the loop. The board's stall warning can fire for
+    // two very different reasons — the loop exited, or it is running but every
+    // poll is failing — and from the ledger alone they look identical. These
+    // two lines say which one happened, so the next occurrence can be read off
+    // the log instead of inferred.
+    console.log(`[runninghub pool] watcher start (site=${site}, agent=${agent?.id ?? 'detached'})`)
+    let ticks = 0
+    try {
+      while (!cancelled) {
+        // The pool settings can change while the watcher runs — the concurrency
+        // ceiling in particular is meant to take effect without a restart. Read
+        // them fresh every tick rather than holding one snapshot for the life of
+        // the loop.
+        const cfg = readConfig()
+        let outcome
+        try {
+          outcome = await tick(apiKey, site, { updateProgress: (line) => job?.updateProgress?.(line) }, cfg)
+          ticks += 1
+        } catch (error) {
+          // Transient errors never kill the watcher; log and retry next tick.
+          outcome = { drained: false }
+          ticks += 1
+          console.warn(`[runninghub pool] tick #${ticks} error:`, error?.message ?? error)
+        }
+        if (outcome.drained) {
+          console.log(`[runninghub pool] watcher exit after ${ticks} tick(s): pool drained`)
+          return { status: 'completed', detail: '池已排空' }
+        }
+        await new Promise((resolve) => {
+          wakeSleep = resolve
+          setTimeout(resolve, Math.max(5, cfg.pollIntervalSeconds) * 1000)
+        })
+        wakeSleep = undefined
+      }
+      console.log(`[runninghub pool] watcher exit after ${ticks} tick(s): cancelled`)
+      return { status: 'killed', detail: 'cancelled' }
+    } catch (error) {
+      // Anything thrown outside the per-tick guard ends the loop, and nothing
+      // else would report it: the board would simply stop seeing updates.
+      console.error('[runninghub pool] watcher died:', error?.stack ?? error)
+      throw error
+    }
   })()
 
   let job
