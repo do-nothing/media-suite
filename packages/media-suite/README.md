@@ -7,7 +7,7 @@
 ```text
 media-suite
   ├─ media-qwen        多模态理解 / 语音合成 / 场景音频生成
-  └─ media-runninghub  图片生成 / 工作流任务池（11 种任务类型）
+  └─ media-runninghub  图片生成 / 工作流任务池（13 种任务类型）
 ```
 
 装完你会得到：
@@ -19,10 +19,30 @@ media-suite
 
 **RunningHub 媒体**（设置 → RunningHub 媒体）
 - `runninghub_image` —— Nano Banana 2 同步出图（文生图 / 改图 / 多图融合）
-- `runninghub_workflow_submit` / `_types` / `_status` —— 工作流任务池，支持文生图、改图、文生视频、数字人、语音克隆、文生音乐、人声分离
+- `runninghub_workflow_submit` / `_types` / `_status` —— 工作流任务池
 - 配套技能 `runninghub-workflow`，告诉模型该怎么用任务池
 
 两个 provider 各有自己的设置页，各自管理自己的 Key。
+
+## 任务池能做什么（13 种）
+
+| 类型 | 用途 |
+|---|---|
+| `image-gen-qwen` | 文生图（Qwen Image 2.1） |
+| `image-edit-qwen` | 单图编辑 |
+| `image-edit-qwen-multi` | 多图编辑（主图 + 5 张参考） |
+| `image-edit-banana2` | 全能图片（2–10 图融合，另收第三方费） |
+| `i2v-minimax-h3-first-frame` | 首帧生视频 |
+| `i2v-minimax-h3-first-last-frame` | 首尾帧生视频 |
+| `i2v-minimax-h3-multi-ref` | 多参考生视频（9 图 + 3 视频 + 3 音频） |
+| `digital-human-singing` | 唱歌对口型（照片 + 音频，音轨原样复用） |
+| `voice-clone-emo` | 音色克隆朗读 |
+| `digital-human` | 数字人口播 |
+| `music-yue2` | 文生音乐 |
+| `music-yue2-cover` | 改词翻唱 |
+| `vocal-separation-melband` | 人声分离 |
+
+提交后即可结束对话，任务在后台排队、自动下载产物，批次排空时自动唤醒会话。
 
 ## 它本身不做什么
 
